@@ -1,0 +1,6 @@
+# 공통 (데이터 수집·로딩·그래프)
+pandas
+openpyxl
+requests
+python-dotenv
+matplotlib

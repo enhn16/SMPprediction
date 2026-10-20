@@ -1,0 +1,10 @@
+.env
+data/
+__pycache__/
+.ipynb_checkpoints/
+# 현업 제공 문서 (PRD 보안등급 대내한 등) — 저장소에 올리지 않음
+read/
+# 학습 부산물·임시
+catboost_info/
+.tmp_*
+.claude/settings.local.json

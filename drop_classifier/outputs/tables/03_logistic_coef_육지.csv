@@ -1,0 +1,22 @@
+﻿,표준화 계수
+demand_fcst,-1.582
+prev_same_type_min_smp,-0.871
+is_long_holiday,-0.62
+fc_tmp_mean,-0.588
+demand_rel28,-0.559
+month_cos,0.455
+is_myeongjeol,0.438
+offday_x_fc_sky_mean,-0.413
+is_weekend_only,0.378
+fc_rain_share,-0.292
+fc_pop_mean,-0.174
+prev_day_min_smp,-0.16
+fc_sky_mean,-0.142
+month_sin,-0.12
+offday_x_demand_rel28,-0.113
+off_block_len,0.11
+is_holiday_single,0.103
+is_labor_day,-0.1
+is_offday,0.061
+fc_wsd_mean,-0.056
+off_block_day,-0.007
