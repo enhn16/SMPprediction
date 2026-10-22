@@ -1,10 +1,11 @@
 """웹앱 데이터 내보내기 → smp_forecast_app/web/data/forecast_data.js (window.SMP_DATA = {...}). 자체 모델만.
 
-화면 구성 (2026-10-21 개편)
-  일주일 예측 : 최신 기준일의 앞으로 7일(시간별 168시간) 예측 + 80% 범위, 내일(D+1)에 과제1 급락 배지
-  한 달 예측  : 최신 기준일의 7~34일 뒤 일별(일평균·한낮·저녁·한낮 최저) 예측 + 범위, 주·월 평균
-  지난 예측   : 기간·'며칠 전 예측'을 골라 예측 vs 공표 SMP 비교 (시간별 D+1~D+7, 일별 7·14·21·28일 전)
-  성적·설명
+화면 구성 (2026-10-23 개편)
+  일주일 예측   : 최신 기준일의 앞으로 7일(시간별 168시간) 예측 + 80% 범위, 내일(D+1)에 과제1 급락 배지
+  한 달 예측    : 최신 기준일의 7~34일 뒤 일별(일평균·한낮·저녁·한낮 최저) 예측 + 범위, 주·월 평균
+  이전 흐름 확인 : 달력에서 기간(최대 14일)을 골라 지나간 예측 vs 공표 SMP (다음 날·일주일 D+1~7·한 달 7·14·21·28일 전)
+  참고 문서     : 개요·다음 날·일주일·한 달 — 모델, 비교 모델과 성능, 선택 이유, 사용 데이터, 표준 성적표 (docs)
+  설명
 입력: WZ_predictions_hourly.csv(일주일, wz_ens) · MZ_predictions_daily.csv(한 달, mz_ens — 없으면 M_predictions_daily.csv)
       ops 운영 기록(있으면 같은 대상 덮어씀) · drop_badge.csv / ops drop_log.csv (급락 확률)
 실행: python -m smp_forecast_app.src.export_web
@@ -131,12 +132,17 @@ def main():
                   "choice": _json("MZ_choice.json")},
         "dropCal": _table("D1_drop_calibration.csv"), "dropChoice": _json("D_choice.json"),
     }
+    t1 = ROOT / "drop_classifier" / "outputs" / "tables"
+    docs = {"final": _json("F_final.json"), "metrics": _table("F1_final_metrics.csv"), "nextday": _table("F2_nextday_compare.csv"),
+            "dropTest": json.loads(pd.read_csv(t1 / "13_final_test2026_육지.csv").round(4).to_json(orient="records", force_ascii=False)),
+            "dropZoo": json.loads(pd.read_csv(t1 / "17_zoo_cv2025_육지.csv").drop(columns=["초"], errors="ignore").head(15)
+                                  .round(4).to_json(orient="records", force_ascii=False))}
     ol = OPS / "run_log.txt"
     runs = [l for l in ol.read_text(encoding="utf-8").splitlines() if "매일 예측 완료" in l] if ol.exists() else []
     data = {"generated": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"), "lastPublished": last_pub.strftime("%Y-%m-%d"),
             "lastRun": runs[-1][1:17] if runs else None, "week": week, "month": month,
             "past": {"hourly": past_h, "actual": actual, "daily": past_d, "dailyActual": daily_act, "drop": drops},
-            "dayinfo": {k: v for k, v in dayinfo.items() if k >= PAST_SINCE}, "perf": perf}
+            "dayinfo": {k: v for k, v in dayinfo.items() if k >= PAST_SINCE}, "perf": perf, "docs": docs}
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text("window.SMP_DATA = " + json.dumps(data, ensure_ascii=False, separators=(",", ":"), default=lambda o: None) + ";\n",
                    encoding="utf-8")

@@ -17,8 +17,8 @@
   <nav class="wrap tabs" role="tablist">
     <button class="tab on" data-tab="week" role="tab">일주일 예측</button>
     <button class="tab" data-tab="month" role="tab">한 달 예측</button>
-    <button class="tab" data-tab="past" role="tab">지난 예측</button>
-    <button class="tab" data-tab="perf" role="tab">성적</button>
+    <button class="tab" data-tab="flow" role="tab">이전 흐름 확인</button>
+    <button class="tab" data-tab="docs" role="tab">참고 문서</button>
     <button class="tab" data-tab="help" role="tab">설명</button>
   </nav>
 </div>
@@ -57,31 +57,42 @@
     <details class="tablebox"><summary>일별 표</summary><div class="tscroll"><table id="m-table"></table></div></details>
   </section>
 
-  <!-- 지난 예측 -->
-  <section id="tab-past" class="panel">
+  <!-- 이전 흐름 확인 -->
+  <section id="tab-flow" class="panel">
     <div class="controls">
-      <div class="datebox">
-        <label>기간</label><input type="date" id="p-from"><span>~</span><input type="date" id="p-to">
-        <button class="btn" data-q="7">최근 1주</button><button class="btn" data-q="30">1개월</button><button class="btn" data-q="90">3개월</button>
+      <div class="rangepick">
+        <button class="rp-box" id="f-start-box" type="button"><span class="k">시작일</span><b id="f-start-txt">-</b></button>
+        <span class="rp-arrow">→</span>
+        <button class="rp-box" id="f-end-box" type="button"><span class="k">종료일</span><b id="f-end-txt">-</b></button>
+        <span class="rp-days" id="f-days"></span>
+        <div class="cal-pop" id="f-cal" hidden></div>
       </div>
       <div class="datebox">
-        <label>종류</label>
-        <select id="p-kind"><option value="h">시간별 (일주일 예측)</option><option value="d">일별 (한 달 예측)</option></select>
-        <label>며칠 전 예측</label><select id="p-h"></select>
-        <select id="p-stat" hidden><option value="mean">일평균</option><option value="mid">한낮</option><option value="eve">저녁</option><option value="midmin">한낮 최저</option></select>
+        <label>예측</label>
+        <select id="f-kind"><option value="d1">다음 날 예측 (D+1)</option><option value="wk">일주일 예측 (며칠 전 선택)</option><option value="mo">한 달 예측 (일별)</option></select>
+        <select id="f-h" hidden></select>
+        <select id="f-stat" hidden><option value="mean">일평균</option><option value="mid">한낮 11~15시</option><option value="eve">저녁 18~22시</option><option value="midmin">한낮 최저</option></select>
       </div>
     </div>
-    <div class="kpis" id="p-kpis"></div>
+    <div class="kpis" id="f-kpis"></div>
     <div class="chartbox">
       <div class="legend"><span><i class="lg band"></i>80% 범위</span><span><i class="lg line"></i>당시 예측</span>
-        <span><i class="lg act"></i>공표 SMP</span><span><i class="lg out"></i>범위 밖</span></div>
-      <div id="p-chart" class="chart"></div><div id="p-tip" class="tip" hidden></div>
+        <span><i class="lg act"></i>공표 SMP</span><span><i class="lg out"></i>범위 밖</span><span><i class="lg mid"></i>한낮 11~15시 / 휴무일</span></div>
+      <div id="f-chart" class="chart"></div><div id="f-tip" class="tip" hidden></div>
     </div>
-    <p class="note">'며칠 전 예측' = 대상일보다 그만큼 앞선 기준일 15시에 낸 예측. 예: D+3이면 사흘 전 15시 예측.</p>
+    <div class="tablebox"><div class="tscroll"><table id="f-table"></table></div></div>
+    <p class="note" id="f-note"></p>
   </section>
 
-  <!-- 성적 -->
-  <section id="tab-perf" class="panel"><div id="perf"></div></section>
+  <!-- 참고 문서 -->
+  <section id="tab-docs" class="panel">
+    <div class="controls">
+      <div class="seg" id="d-page"><button class="on" data-p="ov">개요</button><button data-p="d1">다음 날 예측</button>
+        <button data-p="wk">일주일 예측</button><button data-p="mo">한 달 예측</button></div>
+      <span class="note" id="d-sub"></span>
+    </div>
+    <div id="docs" class="docs"></div>
+  </section>
 
   <!-- 설명 -->
   <section id="tab-help" class="panel">
@@ -90,14 +101,15 @@
       <ul>
         <li><b>일주일 예측</b>: 기준일 15시에 내일부터 7일 동안 시간별 SMP와 80% 범위. 내일에는 과제1의 <b>한낮 급락 경고</b>(등급·확률)를 함께 표시합니다. 예측값은 그대로 두고 경고만 붙입니다.</li>
         <li><b>한 달 예측</b>: 7~34일 뒤를 일 단위(일평균·한낮·저녁·한낮 최저)로. 주별·월별 평균도 함께.</li>
-        <li><b>지난 예측</b>: 과거에 냈던 예측을 공표 SMP와 겹쳐 보고, 기간별 오차·포함률을 확인.</li>
+        <li><b>이전 흐름 확인</b>: 달력에서 기간(최대 2주)을 골라, 그때 냈던 예측을 공표 SMP와 겹쳐 보고 오차·포함률을 확인.</li>
+        <li><b>참고 문서</b>: 다음 날·일주일·한 달 예측별 최종 모델, 비교한 모델과 성능, 선택 이유, 사용 데이터, 성적표.</li>
       </ul>
       <h2>80% 범위란?</h2>
       <p>「실제 가격이 이 사이에 들어올 것」이라는 약속의 폭입니다. 80% 범위라면 10번 중 8번은 공표 SMP가 범위 안에 들어와야 합니다.</p>
       <p class="callout">활쏘기 비유 — 예측값은 과녁 중심, 범위는 둘레의 원, 공표 SMP는 날아오는 화살.</p>
       <h2>어떻게 골랐나</h2>
       <p>여러 모델(부스팅·선형·트리·신경망·시계열 기초모델 Chronos 등)과 앙상블을 같은 조건(기준일 15시에 알 수 있는 정보)으로 비교해
-        <b>2025년 성적만으로</b> 고르고, 2026년은 마지막에 채점했습니다. 자세한 순위는 성적 탭에 있습니다.</p>
+        <b>2025년 성적만으로</b> 고르고, 2026년은 마지막에 채점했습니다. 자세한 순위와 성적표는 참고 문서 탭에 있습니다.</p>
       <h2>읽을 때 주의</h2>
       <ul>
         <li>휴일 한낮 급락(0원 근처)은 범위가 잘 담지 못합니다 — 급락 경고를 함께 보세요.</li>

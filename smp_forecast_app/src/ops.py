@@ -312,6 +312,8 @@ def daily():
     run(["common.collect.smp_forecast", "--recent", "5"])
     run(["common.collect.kma_regional_fcst", (today - pd.Timedelta(days=3)).strftime("%Y%m"), today.strftime("%Y%m")])
     run(["common.collect.mid_fcst"])
+    run(["common.collect.openmeteo_prevruns", (today - pd.Timedelta(days=5)).strftime("%Y-%m-%d"),
+         (today + pd.Timedelta(days=1)).strftime("%Y-%m-%d")])   # D+1 일사·운량 (D-2 실행분, H=1 피처)
     run(["common.collect.kpx_weekly_outlook"])
     run(["common.collect.kpx_demand_fcst"])
     if today.day <= 10:
