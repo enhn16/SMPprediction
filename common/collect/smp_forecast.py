@@ -5,6 +5,7 @@
 한 페이지 5,000건씩 전체를 받은 뒤(약 8분) 48행이 안 되는 날짜만 날짜 지정으로 다시 받는다.
 
 실행: python -m common.collect.smp_forecast [시작일 YYYYMMDD]
+      python -m common.collect.smp_forecast --recent 5   (최근 5일 ~ 내일만 날짜 지정으로 다시 받아 월별 파일에 합침)
 저장: data/raw/api/smp_forecast/smp_forecast_YYYYMM.csv (월별)
 """
 import sys
@@ -59,5 +60,33 @@ def main(start: str = "20220101"):
     print(f"저장: {OUT_DIR} ({ym.nunique()}개월, {len(df)}행, {df['date'].min()}~{df['date'].max()})")
 
 
+def update_recent(n_days: int = 5):
+    """오늘 기준 최근 n일 ~ 내일을 날짜 지정으로 받아 기존 월별 파일에 덮어 합친다 (48행 미만 날은 공표 전이라 저장 안 함, 단 육지 24행은 저장)."""
+    today = pd.Timestamp.today().normalize()
+    days = pd.date_range(today - pd.Timedelta(days=n_days), today + pd.Timedelta(days=1)).strftime("%Y%m%d")
+    new = []
+    for d in days:
+        items = pd.DataFrame(fetch_all(URL, {"dataType": "json", "date": d}, num_rows=100))
+        print(f"{d}: {len(items)}행", flush=True)
+        if len(items) >= ROWS_PER_DAY // 2:
+            items["hour"] = items["hour"].astype(int)
+            new.append(items.drop_duplicates(["date", "hour", "areaName"]))
+    if not new:
+        return
+    new = pd.concat(new)
+    for m, g in new.groupby(new["date"].astype(str).str[:6]):
+        path = OUT_DIR / f"smp_forecast_{m}.csv"
+        old = pd.read_csv(path, dtype={"date": str}) if path.exists() else pd.DataFrame()
+        if len(old):
+            old["hour"] = old["hour"].astype(int)
+            old = old[~old["date"].astype(str).isin(g["date"].astype(str).unique())]
+        out = pd.concat([old, g.assign(date=g["date"].astype(str))]).sort_values(["date", "areaName", "hour"])
+        out.to_csv(path, index=False, encoding="utf-8-sig")
+        print(f"저장: {path.name} ({out['date'].min()}~{out['date'].max()})")
+
+
 if __name__ == "__main__":
-    main(*sys.argv[1:2])
+    if sys.argv[1:2] == ["--recent"]:
+        update_recent(int(sys.argv[2]) if len(sys.argv) > 2 else 5)
+    else:
+        main(*sys.argv[1:2])

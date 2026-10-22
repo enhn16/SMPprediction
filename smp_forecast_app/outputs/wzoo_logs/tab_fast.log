@@ -1,0 +1,61 @@
+naive7 저장
+same 저장
+lgb H=1 (2334s)
+lgb H=2 (2441s)
+lgb H=3 (2545s)
+lgb H=4 (2643s)
+lgb H=5 (2730s)
+lgb H=6 (2816s)
+lgb H=7 (2902s)
+lgb 완료 (2903s)
+lgbq H=1 (266s)
+lgbq H=2 (520s)
+lgbq H=3 (775s)
+lgbq H=4 (1032s)
+lgbq H=5 (1295s)
+lgbq H=6 (1559s)
+lgbq H=7 (1822s)
+lgbq 완료 (1823s)
+xgb H=1 (116s)
+xgb H=2 (230s)
+xgb H=3 (344s)
+xgb H=4 (458s)
+xgb H=5 (579s)
+xgb H=6 (701s)
+xgb H=7 (822s)
+xgb 완료 (823s)
+ridge H=1 (7s)
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\developer\SMP\smp_forecast_app\src\wz_tab.py", line 136, in <module>
+    main(sys.argv[1:] or ["base", "lgb", "lgbq", "xgb", "ridge"])
+  File "C:\developer\SMP\smp_forecast_app\src\wz_tab.py", line 129, in main
+    out.append(rolling_fit(feats(H), H, freq, fn))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\developer\SMP\smp_forecast_app\src\wz_common.py", line 35, in rolling_fit
+    r = fit_predict(tr, te)
+        ^^^^^^^^^^^^^^^^^^^
+  File "C:\developer\SMP\smp_forecast_app\src\wz_tab.py", line 59, in m_ridge
+    return Ridge(alpha=10).fit(X, tr["y"]).predict(Xt)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python312\Lib\site-packages\sklearn\base.py", line 1403, in wrapper
+    return fit_method(estimator, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python312\Lib\site-packages\sklearn\linear_model\_ridge.py", line 1253, in fit
+    X, y = validate_data(
+           ^^^^^^^^^^^^^^
+  File "C:\Python312\Lib\site-packages\sklearn\utils\validation.py", line 3058, in validate_data
+    X, y = check_X_y(X, y, **check_params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python312\Lib\site-packages\sklearn\utils\validation.py", line 1330, in check_X_y
+    X = check_array(
+        ^^^^^^^^^^^^
+  File "C:\Python312\Lib\site-packages\sklearn\utils\validation.py", line 1090, in check_array
+    _assert_all_finite(
+  File "C:\Python312\Lib\site-packages\sklearn\utils\validation.py", line 137, in _assert_all_finite
+    _assert_all_finite_element_wise(
+  File "C:\Python312\Lib\site-packages\sklearn\utils\validation.py", line 186, in _assert_all_finite_element_wise
+    raise ValueError(msg_err)
+ValueError: Input X contains NaN.
+Ridge does not accept missing values encoded as NaN natively. For supervised learning, you might want to consider sklearn.ensemble.HistGradientBoostingClassifier and Regressor which accept missing values encoded as NaNs natively. Alternatively, it is possible to preprocess the data, for instance by using an imputer transformer in a pipeline or drop samples with missing values. See https://scikit-learn.org/stable/modules/impute.html You can find a list of all estimators that handle NaN values at the following page: https://scikit-learn.org/stable/modules/impute.html#estimators-that-handle-nan-values

@@ -18,8 +18,14 @@ PATH = PROCESSED_DIR / "drop_classifier" / "kpx_weekly_outlook.csv"
 OUTLOOK = ["kpx_peak", "kpx_peak_rel"]
 
 
+AUTO = PROCESSED_DIR / "smp_forecast_app" / "kpx_outlook_auto.csv"   # 매일 자동 수집분 (common.collect.kpx_weekly_outlook)
+
+
 def load() -> pd.DataFrame:
     df = pd.read_csv(PATH, parse_dates=["written", "target_date", "posted"])
+    if AUTO.exists():   # 2026-10-21 추가: 기존 표에 없는 게시물만 덧붙임 (기존 값은 그대로)
+        auto = pd.read_csv(AUTO, parse_dates=["written", "target_date", "posted"])
+        df = pd.concat([df, auto[~auto["list_no"].isin(df["list_no"])][df.columns.intersection(auto.columns)]], ignore_index=True)
     df = df.dropna(subset=["peak_gw"])
     df["kpx_peak_rel"] = df["peak_gw"] / df.groupby("list_no")["peak_gw"].transform("max")
     return df.rename(columns={"peak_gw": "kpx_peak"})

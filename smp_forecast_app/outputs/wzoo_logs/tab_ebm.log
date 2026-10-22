@@ -1,0 +1,23 @@
+Traceback (most recent call last):
+  File "C:\Python312\Lib\site-packages\joblib\externals\loky\backend\resource_tracker.py", line 397, in main
+    cache[rtype][name] -= 1
+    ~~~~~~~~~~~~^^^^^^
+KeyError: 'C:\\Users\\samsung\\AppData\\Local\\Temp\\joblib_memmapping_folder_224876_ffe2cfaad5d74b6fb8de0d2be631fb3a_ef0ea9c6b21d4b23a91562111ea5d0b5\\224876-1451434755904-d71441f396604e839ab5602513d5089d.pkl'
+ebm H=1 (4226s)
+ebm H=2 (6511s)
+ebm H=3 (8734s)
+ebm H=4 (11251s)
+Traceback (most recent call last):
+  File "C:\Python312\Lib\site-packages\joblib\externals\loky\backend\resource_tracker.py", line 397, in main
+    cache[rtype][name] -= 1
+    ~~~~~~~~~~~~^^^^^^
+KeyError: 'C:\\Users\\samsung\\AppData\\Local\\Temp\\joblib_memmapping_folder_224876_ffe2cfaad5d74b6fb8de0d2be631fb3a_02efdb02cd594fbf9450ce5887d1d1ff\\224876-1451434755904-f45be2e865ec43e988e076f6cf1c4c15.pkl'
+ebm H=5 (14033s)
+ebm H=6 (17118s)
+Traceback (most recent call last):
+  File "C:\Python312\Lib\site-packages\joblib\externals\loky\backend\resource_tracker.py", line 397, in main
+    cache[rtype][name] -= 1
+    ~~~~~~~~~~~~^^^^^^
+KeyError: 'C:\\Users\\samsung\\AppData\\Local\\Temp\\joblib_memmapping_folder_224876_ffe2cfaad5d74b6fb8de0d2be631fb3a_4e5ea07baf734a34af6dbbd39b32510c\\224876-1451434755904-b25b66205e45470596dcdf4bef0e531c.pkl'
+ebm H=7 (20031s)
+ebm 완료 (20032s)

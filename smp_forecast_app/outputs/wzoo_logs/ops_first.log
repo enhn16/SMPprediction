@@ -1,0 +1,19 @@
+[2026-10-22 19:35:19] ===== 매일 예측 시작 =====
+[2026-10-22 19:35:46] 수집 common.collect.smp_forecast --recent 5 → 종료코드 0 20261023: 48행 | 저장: smp_forecast_202610.csv (20261001~20261023)
+[2026-10-22 19:36:00] 수집 common.collect.kma_regional_fcst 202610 202610 → 종료코드 0 대구(11H10701) 202610: 528행 | 진주(11H20701) 202610: 528행
+[2026-10-22 19:36:11] 수집 common.collect.mid_fcst → 종료코드 0 저장: C:\developer\SMP\data\raw\api\mid_fcst\mid_2026102206.csv (140행)
+[2026-10-22 19:36:14] 수집 common.collect.kpx_weekly_outlook → 종료코드 0 새 게시물 0건, 추가 0행
+[2026-10-22 19:36:16] 수집 common.collect.kpx_demand_fcst → 종료코드 0 활용신청 필요: 공공데이터포털 '한국전력거래소_전력수급예보조회_GW'(15158707) — 현재 키 미등록
+[2026-10-22 19:36:23] 학습 시작 (한 달 LSTM·GRU)
+[2026-10-22 20:10:17] 학습 완료 → C:\developer\SMP\data\processed\smp_forecast_app\models\mz_seq.pt (기준일 ~2026-09-17, 2033s)
+저장: C:\developer\SMP\data\processed\smp_forecast_app\features_daily_육지.csv (48,328행, 기준일 2022-02-01 ~ 2026-10-23)
+2024~ 결측률: {}
+[2026-10-22 20:10:30] 기준일 2026-10-22 ~ 2026-10-22 (1일) 산출
+Loading weights:   0%|          | 0/92 [00:00<?, ?it/s]Loading weights:  14%|█▍        | 13/92 [00:00<00:00, 121.75it/s]Loading weights: 100%|██████████| 92/92 [00:00<00:00, 800.36it/s]
+Loading weights:   0%|          | 0/170 [00:00<?, ?it/s]Loading weights:   6%|▌         | 10/170 [00:00<00:01, 86.52it/s]Loading weights:  11%|█         | 19/170 [00:00<00:02, 70.25it/s]Loading weights:  16%|█▌        | 27/170 [00:00<00:02, 64.56it/s]Loading weights:  20%|██        | 34/170 [00:00<00:02, 59.36it/s]Loading weights: 100%|██████████| 170/170 [00:00<00:00, 271.31it/s]
+[2026-10-22 20:11:58] 일주일 완료
+[2026-10-22 20:12:03] 한 달 완료
+[2026-10-22 20:12:49] 급락 경고 완료
+저장: C:\developer\SMP\smp_forecast_app\web\data\forecast_data.js (1918 KB) — 일주일 기준일 2026-10-22, 한 달 기준일 2026-10-22, 최신 공표 2026-10-23
+[2026-10-22 20:13:05] 푸시 건너뜀 (SMP_NO_PUSH)
+[2026-10-22 20:13:05] ===== 매일 예측 완료 (2266s) =====

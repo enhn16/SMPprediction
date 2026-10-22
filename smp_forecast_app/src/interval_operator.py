@@ -21,7 +21,7 @@ import pandas as pd
 
 from common.calendar import build_calendar
 from common.config import PROCESSED_DIR, ROOT
-from common.loaders import load_smp_excel
+from common.loaders import load_smp_actual
 from smp_forecast_app.src.intervals import add_keys, methods, report, score, segments, select
 
 EDU = ROOT / "data" / "smp_edu_data"
@@ -30,7 +30,7 @@ OUT_DATA = PROCESSED_DIR / "smp_forecast_app"
 
 
 def actual_land() -> pd.DataFrame:
-    return load_smp_excel("육지").rename(columns={"smp": "y"})
+    return load_smp_actual("육지")[["date", "hour", "smp"]].rename(columns={"smp": "y"})
 
 
 def offday_table(start, end) -> pd.DataFrame:

@@ -1,9 +1,9 @@
 """최종 하루 전 모델 (육지, 판단 시각 D-1 15:00) — 결과표·과제2 연계 파일·결과 페이지용 데이터 생성.
 
-최종 구성 (2026-10-19 결정, 모두 2025년 성적으로만 선택)
+최종 구성 (2026-10-21 갱신, 모두 2025년 성적으로만 선택 — 이전 v1: Ridge+EBM, 문턱 80%)
   - 피처: 기본+주간전망+보강 + 태양광 설비용량 (supply_level.py에서 선택)
-  - 모델: Ridge(α=3)+EBM 회귀 평균, 예측 = 내일 한낮(11~15시) 최저 SMP
-  - 문턱: 주의 = 2024 학습→2025 예측에서 2025 급락 80%를 잡는 값
+  - 모델: Ridge(α=3)+EBM+랜덤포레스트 회귀 평균 (zoo.py 43+14개 후보 중 1위), 예측 = 내일 한낮(11~15시) 최저 SMP
+  - 문턱: 주의 = 2024 학습→2025 예측에서 2025 급락 90%를 잡는 값 (재현율 우선, 2026-10-21 변경)
           강한 경보 = 같은 예측에서 정밀도 50%·적중 3일 이상인 가장 느슨한 값
   - 시험: 2024~2025 학습 → 2026-01-01 ~ 최신일 한 번 채점
 출력 (outputs/tables)
@@ -25,7 +25,8 @@ from sklearn.metrics import roc_auc_score
 from common.config import ROOT
 from drop_classifier.src.fair_select import fcst15, metrics
 from drop_classifier.src.final import threshold_for
-from drop_classifier.src.fuel_level import ABS, BASE
+from drop_classifier.src.fuel_level import BASE
+from drop_classifier.src.zoo import BASES
 from drop_classifier.src.models import split
 from drop_classifier.src.search import day_table
 from drop_classifier.src.supply_level import SOLAR, supply_features
@@ -34,7 +35,15 @@ from drop_classifier.src.two_tier import OUT_TAB, strong_threshold
 warnings.filterwarnings("ignore")
 REGION = "육지"
 COLS = BASE + SOLAR
-NAME = "최종 모델 (Ridge+EBM)"
+NAME = "최종 모델 (Ridge+EBM+랜덤포레스트)"
+RECALL_TARGET = 0.9
+MEMBERS = ["Ridge", "EBM(회귀)", "랜덤포레스트(회귀)"]
+
+
+def ABS(tr, te, cols):
+    """구성 모델 점수(= −예측 원) 평균. cols는 zoo.COLS(= BASE+SOLAR)와 같아야 함."""
+    assert list(cols) == COLS
+    return np.mean([BASES[m](tr, te) for m in MEMBERS], axis=0)
 
 
 def baseline_weekly_d1() -> pd.DataFrame:
@@ -56,7 +65,7 @@ def main():
     tr, va = split(df, ("2024-01-01", "2024-12-31")), split(df, ("2025-01-01", "2025-12-31")).copy()
     va["score"] = ABS(tr, va, COLS)
     yv = va["label"].values
-    warn, strong = threshold_for(yv, va["score"].values, 0.8), strong_threshold(yv, va["score"].values)
+    warn, strong = threshold_for(yv, va["score"].values, RECALL_TARGET), strong_threshold(yv, va["score"].values)
     w_won, s_won = round(-warn, 1), round(-strong, 1)
     print(f"문턱: 주의 {w_won}원, 강한 경보 {s_won}원", flush=True)
 

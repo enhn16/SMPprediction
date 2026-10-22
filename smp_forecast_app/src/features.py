@@ -19,7 +19,7 @@ import pandas as pd
 from common.calendar import build_calendar
 from common.config import PROCESSED_DIR
 from common.loaders import (load_fuel_cost, load_kma_regional_fcst, load_market_capacity, load_mid_forecast,
-                            load_openmeteo_prev2, load_smp_excel, load_smp_forecast_api)
+                            load_openmeteo_prev2, load_smp_actual, load_smp_forecast_api)
 from drop_classifier.src import outlook_features
 from common.collect.kma_regional_fcst import REGIONS
 from drop_classifier.src.fair_select import fcst15
@@ -54,7 +54,7 @@ def build(lead: int = 1) -> pd.DataFrame:
     """lead = H: 판단일 I = D-H의 15시에 D를 예측. H=1이 하루 전(기본). 피처 이름은 H와 관계없이 같게 둔다
     (s_d1 = '판단 시점의 가장 최근 확정일(D-H)' 같은 시간 SMP)."""
     H = lead
-    smp = load_smp_excel("육지")
+    smp = load_smp_actual("육지")[["date", "hour", "smp"]]
     dem = load_smp_forecast_api()
     dem = dem[dem["region"] == "육지"]
     S, D = _wide(smp, "smp"), _wide(dem, "demand_fcst")

@@ -1,0 +1,29 @@
+ridge H=1 (6s)
+ridge H=2 (12s)
+ridge H=3 (18s)
+ridge H=4 (24s)
+ridge H=5 (29s)
+ridge H=6 (35s)
+ridge H=7 (42s)
+ridge 완료 (43s)
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\developer\SMP\smp_forecast_app\src\wz_tab.py", line 137, in <module>
+    main(sys.argv[1:] or ["base", "lgb", "lgbq", "xgb", "ridge"])
+  File "C:\developer\SMP\smp_forecast_app\src\wz_tab.py", line 130, in main
+    out.append(rolling_fit(feats(H), H, freq, fn))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\developer\SMP\smp_forecast_app\src\wz_common.py", line 35, in rolling_fit
+    r = fit_predict(tr, te)
+        ^^^^^^^^^^^^^^^^^^^
+  File "C:\developer\SMP\smp_forecast_app\src\wz_tab.py", line 93, in m_mlp
+    n_iter_no_change=10, random_state=SEED).fit(X, (tr["y"] - mu) / sd)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python312\Lib\site-packages\sklearn\base.py", line 1393, in wrapper
+    estimator._validate_params()
+  File "C:\Python312\Lib\site-packages\sklearn\base.py", line 554, in _validate_params
+    validate_parameter_constraints(
+  File "C:\Python312\Lib\site-packages\sklearn\utils\_param_validation.py", line 98, in validate_parameter_constraints
+    raise InvalidParameterError(
+sklearn.utils._param_validation.InvalidParameterError: The 'loss' parameter of MLPRegressor must be a str among {'squared_error', 'poisson'}. Got (256, 128) instead.

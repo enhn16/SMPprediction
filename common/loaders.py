@@ -25,6 +25,17 @@ def load_smp_excel(region: str) -> pd.DataFrame:
     return out.sort_values(["date", "hour"]).reset_index(drop=True)
 
 
+def load_smp_actual(region: str) -> pd.DataFrame:
+    """[date, hour, smp, source]: 전력거래소 엑셀(공식 확정값) + 엑셀 이후 날짜는 API 공표값(하루전 확정 SMP).
+    육지는 엑셀과 API가 42,048시간 전부 일치(data_inventory 6절)."""
+    x = load_smp_excel(region).assign(source="엑셀")
+    api = load_smp_forecast_api()
+    api = api[(api["region"] == region) & (api["date"] > x["date"].max())]
+    full = api.groupby("date")["hour"].transform("size") == 24
+    api = api[full][["date", "hour", "smp"]].assign(source="API")
+    return pd.concat([x, api], ignore_index=True).sort_values(["date", "hour"]).reset_index(drop=True)
+
+
 def load_smp_forecast_api() -> pd.DataFrame:
     """data/raw/api/smp_forecast → [date, hour, region, smp, demand_fcst].
 
@@ -141,7 +152,7 @@ def load_mid_forecast() -> pd.DataFrame:
     sky: 맑음 1, 구름많음* 3, 흐림·흐리고* 4 (단기예보 SKY 코드와 같은 척도) / rain: 비·눈·소나기 포함 여부
     '전라북도'는 2024년 중 '전북자치도'로 이름이 바뀌어 '전라북도'로 통일.
     """
-    files = sorted(RAW_DIR.glob("FCT_MEDM_*.csv"))
+    files = sorted(RAW_DIR.glob("FCT_MEDM_*.csv")) + sorted((API_RAW_DIR / "mid_fcst").glob("mid_*.csv"))  # 과거 파일 + 매일 수집분
     df = pd.concat([_read_csv_any(p) for p in files], ignore_index=True)
     df.columns = ["issue", "region", "target", "wf", "pop"]
     out = pd.DataFrame({
@@ -276,6 +287,23 @@ def load_market_capacity() -> pd.DataFrame:
     for k, col in {"cap_nuclear": "원자력", "cap_coal": "석탄계", "cap_lng": "LNG", "cap_solar": "태양",
                    "cap_wind": "풍력", "cap_total": "계"}.items():
         out[k] = pd.to_numeric(c[col], errors="coerce").values
+    # 매일 수집분(common.collect.epsis_capacity, 같은 값)이 있으면 최신 파일로 덮어씀
+    files = sorted((API_RAW_DIR / "epsis_capacity").glob("gcp_*.txt"))
+    if files:
+        import re
+        rows = []
+        text = files[-1].read_text(encoding="utf-8")
+        for chunk in text.split("gridData.push")[:-1]:
+            c = dict(re.findall(r'(c\d+) = textFormmat\("([^"]*)"', chunk))
+            yr = re.findall(r'year = "([0-9/]+)";\s*\}', chunk)
+            if yr and "c8" in c:
+                rows.append({"month": pd.to_datetime(yr[-1], format="%Y/%m"),
+                             **{k: pd.to_numeric(c.get(v), errors="coerce") for k, v in
+                                {"cap_nuclear": "c1", "cap_coal": "c23", "cap_lng": "c5", "cap_solar": "c93",
+                                 "cap_wind": "c94", "cap_total": "c8"}.items()}})
+        if rows:
+            api = pd.DataFrame(rows)
+            out = pd.concat([out[~out["month"].isin(api["month"])], api])
     out = out.sort_values("month").reset_index(drop=True)
     out["usable_from"] = out["month"] + pd.DateOffset(months=2)
     return out

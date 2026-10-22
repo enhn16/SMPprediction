@@ -95,7 +95,7 @@ def main():
     pd.concat(sels).round(4).to_csv(OUT_TAB / "W1_selection_2025.csv", index=False, encoding="utf-8-sig")
     te = pd.concat(tes)
     te.round(4).to_csv(OUT_TAB / "W2_test2026.csv", index=False, encoding="utf-8-sig")
-    keep = ["base_date", "H", "date", "hour", "y", "pred", "lo", "hi", "offday", "day_type"]
+    keep = ["base_date", "H", "date", "hour", "y", "pred", "lo", "hi", "qlo", "qhi", "offday", "day_type"]
     allp = pd.concat(outs)[keep].sort_values(["base_date", "H", "hour"])
     allp.round(2).to_csv(OUT_DATA / "W_predictions_hourly.csv", index=False, encoding="utf-8-sig")
 
