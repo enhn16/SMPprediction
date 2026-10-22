@@ -91,7 +91,7 @@ def main():
     drops = {r.date: {"grade": r.grade, "min": _n(r.pred_min), "prob": round(float(r.prob), 3)} for r in drop.itertuples()}
 
     # 일주일: 7개 지평이 모두 있는 가장 최근 기준일
-    full = w.groupby("base_date")["H"].nunique()
+    full = w[w["pred"].notna()].groupby("base_date")["H"].nunique()   # 예측값이 실제로 있는 기준일만
     base = full[full == 7].index.max()
     wk = w[w["base_date"] == base].sort_values(["H", "hour"])
     week = {"base": base.strftime("%Y-%m-%d"), "days": []}
@@ -108,7 +108,7 @@ def main():
 
     # 한 달
     m = daily_frame()
-    fullm = m.groupby("base_date")["H"].nunique()
+    fullm = m[m["pred_mean"].notna()].groupby("base_date")["H"].nunique()   # 빈 백테스트 행(피처만 있는 최신 기준일) 제외
     mbase = fullm[fullm >= 28].index.max()
     mm = m[m["base_date"] == mbase].sort_values("H")
     ds = daily_stats()

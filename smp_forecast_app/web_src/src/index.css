@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+/* 한국중부발전 색상 기반 */
+@theme {
+  --font-sans: "Pretendard Variable", Pretendard, "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+  --color-brand: #1a8cdc;
+  --color-brand-dark: #005082;
+  --color-brand-ink: #0b2a42;
+  --color-brand-soft: #e8f3fc;
+  --color-canvas: #f3f6f9;
+  --color-line: #e3e8ee;
+  --color-ink: #1f2933;
+  --color-sub: #5b6b7a;
+  --color-mute: #8a97a4;
+  --color-good: #15805a;
+  --color-bad: #d83f4b;
+  --color-warn: #f2c200;
+  --color-low: #4fb386;
+  --color-band: rgba(26, 140, 220, 0.16);
+}
+
+@layer base {
+  html, body { background: var(--color-canvas); color: var(--color-ink); }
+  body { font-feature-settings: "tnum" 1; -webkit-font-smoothing: antialiased; }
+}
+
+@layer components {
+  .card { @apply rounded-xl border border-line bg-white shadow-[0_1px_2px_rgba(16,40,60,0.05)]; }
+  .card-pad { @apply p-5; }
+  .h-sec { @apply text-[15px] font-bold text-ink; }
+  .muted { @apply text-[12.5px] text-mute; }
+  .tbl { @apply w-full border-collapse text-[13px] tabular-nums; }
+  .tbl th { @apply whitespace-nowrap border-b border-line bg-[#f7f9fb] px-3 py-2 text-right text-[12px] font-semibold text-sub; }
+  .tbl td { @apply whitespace-nowrap border-b border-line px-3 py-2 text-right; }
+  .tbl th.l, .tbl td.l { @apply text-left; }
+  .tbl td.w, .tbl th.w { @apply min-w-[220px] whitespace-normal text-left; }
+  .tbl tr.sel td { @apply bg-brand-soft font-semibold; }
+  .tbl tr:last-child td { @apply border-b-0; }
+  .prose-doc p, .prose-doc li { @apply max-w-[880px] text-[14px] leading-7 text-ink; }
+  .prose-doc ul { @apply list-disc space-y-1 pl-5; }
+  .prose-doc ol { @apply list-decimal space-y-1 pl-5; }
+  .prose-doc b { @apply font-semibold text-brand-ink; }
+}
+
+/* react-day-picker */
+.rdp-root {
+  --rdp-accent-color: #005082;
+  --rdp-accent-background-color: #e3f0fb;
+  --rdp-range_middle-background-color: #e3f0fb;
+  --rdp-range_start-date-background-color: #005082;
+  --rdp-range_end-date-background-color: #005082;
+  --rdp-day-height: 38px;
+  --rdp-day-width: 38px;
+  --rdp-day_button-height: 36px;
+  --rdp-day_button-width: 36px;
+  --rdp-day_button-border-radius: 8px;
+  font-size: 13.5px;
+}
+.rdp-month_caption { font-weight: 700; color: #005082; }
+.rdp-weekday { font-size: 12px; color: #8a97a4; font-weight: 500; }
+.rdp-day.day-off .rdp-day_button { color: #d83f4b; }
+.rdp-day.rdp-selected .rdp-day_button { background: #005082; color: #fff; border: 0; font-weight: 700; }
+.rdp-day.rdp-range_middle { background: #e3f0fb; }
+.rdp-day.rdp-range_middle .rdp-day_button { background: transparent; color: #0b2a42; font-weight: 500; }
+.rdp-today:not(.rdp-selected) .rdp-day_button { color: #1a8cdc; font-weight: 700; }
+.rdp-disabled { opacity: 0.3; }

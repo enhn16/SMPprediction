@@ -37,7 +37,10 @@ smp_forecast_app/
 ├─ CLAUDE.md, docs/       PLAN.md, NEEDS.md(추가 필요 자료), 결과 정리
 ├─ src/                   범위 산출·평가·웹 데이터 내보내기 (Python)
 ├─ outputs/tables|figures 검증표·그래프
-└─ web/                   정적 웹앱 (index.html + data/*.js) — 서버 없이 파일로 열림
+├─ web_src/               웹앱 소스: React + TypeScript + Vite + Tailwind + ECharts + react-day-picker
+└─ web/                   빌드 결과 index.html 한 파일 + data/forecast_data.js — 서버 없이 파일로 열림
 ```
+- 웹 수정: `cd smp_forecast_app/web_src` → `npm install`(처음 한 번) → `npm run build` (→ `web/index.html`). 개발 미리보기 `npm run dev`.
+- 데이터만 바뀌면 빌드 불필요: `python -m smp_forecast_app.src.export_web`이 `web/data/forecast_data.js`만 다시 씀 (운영이 매일 자동).
 - 과제2 전용 정제 데이터는 `../data/processed/smp_forecast_app/`에 저장.
 - 실행: 루트에서 `python -m smp_forecast_app.src.<모듈>`.
