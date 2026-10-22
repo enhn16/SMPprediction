@@ -1,19 +1,20 @@
-# 운영 안내 — 매일 자동 예측 (2026-10-22 갱신: 웹앱 모델 교체)
+# 운영 안내 — 매일 자동 예측 (2026-10-22 갱신: 일주일 잔차 보정 반영, 예약 작업 등록)
 
 ## 모델
 | 예측 | 모델 | 학습 |
 |---|---|---|
-| 일주일 (1~7일 뒤, 시간별) | **Chronos-2 small** 중앙값 (휴무일 공변량), 범위 = Chronos-2 분위수 (D+1은 90일 보정) | 없음 (사전학습 모델, 매일 계산) |
+| 일주일 (1~7일 뒤, 시간별) | **Chronos-2 small** 중앙값 (휴무일 공변량) **+ 0.5 × 잔차 보정**(외부 정보 LightGBM, H별), 범위 = Chronos-2 분위수 (D+1은 90일 보정) | Chronos는 학습 없음. 잔차 보정은 매주 일요일 재학습 (약 20초, 모델 없으면 매일 실행 때 학습) |
 | 한 달 (7~34일 뒤, 일별 4지표) | 기준(같은 유형일 4일 평균) + λ × (LSTM·GRU 평균 − 기준), 범위 = 주차×휴무일 오차 분위수 | 매주 일요일 LSTM·GRU 재학습 (약 35분) |
 | 내일 급락 경고 | 과제1 최종 모델(Ridge+EBM+랜덤포레스트) → 확률 보정 | 매일 (판단일까지 자료) |
 - 첫 운영 실행 2026-10-22: 학습 34분 + 매일 예측 약 3분. 실행 기록 `ops/run_log.txt`
+- 예약 작업 등록 2026-10-22 23시 (첫 실행: 10/23 15:30 daily). 실행 방식: `powershell -WindowStyle Hidden`으로 각 bat 실행
 
 ## 한눈에
 | 작업 (작업 스케줄러) | 시각 | 하는 일 | 실행 파일 |
 |---|---|---|---|
 | `SMP_forecast_daily` | 매일 15:30 | 수집 → 밀린 기준일까지 예측(내일 시간별·주간·한 달·급락 확률) → 예측 기록 → 웹 데이터 → GitHub 푸시 | `smp_forecast_app/ops/ops_daily.bat` |
 | `SMP_forecast_actuals` | 매일 21:30 | 내일 공표 SMP 수집 → 웹 데이터 → 푸시 | `ops_actuals.bat` |
-| `SMP_forecast_train` | 매주 일요일 03:00 | 한 달 예측용 LSTM·GRU 재학습·저장 | `ops_train.bat` |
+| `SMP_forecast_train` | 매주 일요일 03:00 | 일주일 잔차 보정 + 한 달 예측용 LSTM·GRU 재학습·저장 | `ops_train.bat` |
 
 - 세 작업 모두 "예약 시간을 놓치면 가능한 빨리 실행" + "작업 실행 위해 절전 모드 해제" 설정. PC가 꺼져 있었으면 켜질 때 실행.
 - **늦게 실행돼도 예측 내용은 같다**: 피처가 대상일 기준 '판단일 15시까지 알 수 있는 값'으로 날짜에 고정 (내일 수요예측·SMP 미사용, 날씨는 발표 시각으로 선택). 산출 시각(run_at)을 기록해 웹에 "지연 산출" 표시.
@@ -30,11 +31,12 @@
 | 연료비 (월) | `common.collect.epsis_fuel_cost` | 매월 1~10일 |
 | 시장참여 설비용량 (월) | `common.collect.epsis_capacity` | 매월 1~10일 |
 | 휴일 | `common.collect.holidays` | 12월에 다음 해 |
-| 전력수급예보 (일 최대 예측수요) | `common.collect.kpx_demand_fcst` | **활용신청 필요**(15158707). 승인 후 주간전망 대체·보완 검토 |
+| 전력수급예보 (내일 최대 예측수요) | `common.collect.kpx_demand_fcst` | 승인됨(2026-10-22). 내일 1건만 제공·과거 조회 불가 → 대상일·수집 시각으로 축적. 피처 미사용 |
 
 ## 파일
-- 모델: `data/processed/smp_forecast_app/models/mz_seq.pt` (한 달 LSTM·GRU), Chronos는 Hugging Face 캐시
-- 예측 기록: `data/processed/smp_forecast_app/ops/hourly_log.csv`(H=1~6), `daily_log.csv`(7~34일), `drop_log.csv`(급락 확률)
+- 모델: `data/processed/smp_forecast_app/models/mz_seq.pt` (한 달 LSTM·GRU), `wz_resid.pkl` (일주일 잔차 보정), Chronos는 Hugging Face 캐시
+- 잔차 보정 학습 이력: Chronos 과거 예측 `wzoo_hist/c2s.csv.gz`(2023~2024) + 백테스트 `wzoo/c2s.csv.gz` + 운영 기록의 `c2s` 열
+- 예측 기록: `data/processed/smp_forecast_app/ops/hourly_log.csv`(H=1~7; pred = 보정 후, c2s = Chronos 원래 중앙값, rhat = 잔차 예측), `daily_log.csv`(7~34일), `drop_log.csv`(급락 확률)
 - 실행 기록: `data/processed/smp_forecast_app/ops/run_log.txt`, `console_*.log`
 - 웹 데이터: `smp_forecast_app/web/data/forecast_data.js` (백테스트 결과 + 운영 기록, 같은 대상은 운영 기록 우선)
 

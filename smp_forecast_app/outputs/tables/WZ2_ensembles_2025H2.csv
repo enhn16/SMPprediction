@@ -1,4 +1,7 @@
 ﻿앙상블,구성,구성 수,2025 하반기
+Chronos-2 small + 잔차 보정(외부만) λ=0.5,"Chronos-2 small, 잔차 보정 LightGBM(외부만)",2,9.205
+Chronos-2 small + 잔차 보정(전체피처) λ=0.5,"Chronos-2 small, 잔차 보정 LightGBM(전체피처)",2,9.321
+Chronos-2 small + 잔차 보정(계절제외) λ=0.5,"Chronos-2 small, 잔차 보정 LightGBM(계절제외)",2,9.365
 Chronos 평균,"Chronos-2, Chronos-2 small, Chronos-Bolt small",3,9.392
 단일 최고 (Chronos-2 small),Chronos-2 small,1,9.411
 상위 5개 중앙값,"Chronos-2 small, Chronos-2, 엑스트라트리, Chronos-Bolt small, 랜덤포레스트",5,9.44

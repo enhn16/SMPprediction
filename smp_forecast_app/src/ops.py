@@ -1,11 +1,11 @@
 """운영(매일 예측) — 작업 스케줄러가 호출. 웹앱 모델(2026-10-22 선택)을 그대로 쓴다.
 
-  python -m smp_forecast_app.src.ops train    매주 일요일: 한 달 예측용 LSTM·GRU 재학습·저장 (일주일 Chronos는 학습 없음)
+  python -m smp_forecast_app.src.ops train    매주 일요일: 일주일 잔차 보정(LightGBM)·한 달 LSTM·GRU 재학습·저장
   python -m smp_forecast_app.src.ops daily    매일 15:30: 수집 → 밀린 기준일까지 예측 → 기록 → 웹 → 푸시
   python -m smp_forecast_app.src.ops actuals  매일 21:30: 공표 SMP 수집 → 웹 → 푸시
 
 모델 (선택 근거: docs/01_결과.md 10~11절, outputs/tables/WZ_choice.json·MZ_choice.json)
-  일주일 (1~7일 뒤, 시간별): Chronos-2 small 중앙값. 범위 = WZ_choice의 지평별 방법
+  일주일 (1~7일 뒤, 시간별): Chronos-2 small 중앙값 + λ × 잔차 보정(외부 정보 LightGBM, wz_resid). 범위 = WZ_choice의 지평별 방법
         (Chronos-2 분위수 그대로 / 보정 분위수 회귀(Chronos-2 분위수, 90일 갱신, 시간대묶음×휴무일))
   한 달 (7~34일 뒤, 일별 4개 지표): 기준(최근 같은 유형일 4일 평균) + λ × (LSTM·GRU 평균 − 기준), λ·범위는 MZ_choice
   내일 급락 경고: 과제1 최종 모델(Ridge+EBM+랜덤포레스트)을 매일 판단일까지의 자료로 학습해 계산 → 확률 보정(D_choice)
@@ -77,9 +77,43 @@ def _append(name, new, keys):
 
 
 # ---------------------------------------------------------------- 학습 (매주 일요일)
+def _chronos_hist():
+    """잔차 보정 학습용 Chronos-2 small 예측: 과거(2023~2024) + 백테스트 + 운영 기록(c2s 열이 있는 행)."""
+    from smp_forecast_app.src.wz_resid import chronos_all
+    c = chronos_all()
+    ol = _read("hourly_log.csv", parse_dates=["date"])
+    if len(ol) and "c2s" in ol:
+        ol = ol[ol["c2s"].notna()].rename(columns={"c2s": "pred_c", "c2s_qlo": "qlo_c", "c2s_qhi": "qhi_c"})
+        ol = ol[["date", "hour", "H", "pred_c", "qlo_c", "qhi_c"]].set_axis(["date", "hour", "H", "pred", "qlo", "qhi"], axis=1)
+        c = pd.concat([c, ol]).drop_duplicates(["date", "hour", "H"], keep="last")
+    return c
+
+
+def train_resid():
+    """일주일 잔차 보정 모델 (H별 LightGBM, 공표 실적이 있는 행 전부로 학습)."""
+    import joblib
+    import lightgbm as lgb
+    from smp_forecast_app.src.features import build
+    from smp_forecast_app.src.wz_resid import LGB, SETS, table
+    t0 = time.time()
+    ch = json.loads((TAB / "WZ_choice.json").read_text(encoding="utf-8"))
+    cols = SETS[ch.get("잔차 보정 피처 묶음", "외부만")]
+    c = _chronos_hist()
+    models = {}
+    for H in range(1, 8):
+        d = table(H, c, build(H))
+        d = d[d["r"].notna()]
+        models[H] = lgb.LGBMRegressor(**LGB).fit(d[cols], d["r"])
+    MODELS.mkdir(parents=True, exist_ok=True)
+    joblib.dump({"models": models, "cols": cols, "trained_at": datetime.now().isoformat(timespec="minutes"),
+                 "last_date": str(d["date"].max().date())}, MODELS / "wz_resid.pkl")
+    log(f"잔차 보정 학습 완료 → {MODELS / 'wz_resid.pkl'} (실적 ~{d['date'].max().date()}, {time.time()-t0:.0f}s)")
+
+
 def train():
     import torch
     from smp_forecast_app.src.mz import seq_data, seq_fit
+    train_resid()
     t0 = time.time()
     log("학습 시작 (한 달 LSTM·GRU)")
     Xp, Xf, Y, L, B = seq_data()
@@ -94,7 +128,7 @@ def train():
 
 # ---------------------------------------------------------------- 예측
 def chronos_rows(bases):
-    """기준일별 Chronos-2 small 중앙값 + Chronos-2 분위수(0.1·0.9) → [date, hour, H, pred, qlo, qhi]."""
+    """기준일별 Chronos-2 small 중앙값·분위수 + Chronos-2 분위수(0.1·0.9) → [date, hour, H, base_date, pred, qlo, qhi, c2s_qlo, c2s_qhi]."""
     import torch
     from chronos import BaseChronosPipeline
     from common.calendar import build_calendar
@@ -123,14 +157,44 @@ def chronos_rows(bases):
     for k, I in enumerate(bases):
         for t in range(168):
             H, h = t // 24 + 1, t % 24 + 1
-            rows.append((I + pd.Timedelta(days=H), h, H, I, out["c2s"][k][t, 1], out["c2"][k][t, 0], out["c2"][k][t, 2]))
-    return pd.DataFrame(rows, columns=["date", "hour", "H", "base_date", "pred", "qlo", "qhi"])
+            rows.append((I + pd.Timedelta(days=H), h, H, I, out["c2s"][k][t, 1], out["c2"][k][t, 0], out["c2"][k][t, 2],
+                         out["c2s"][k][t, 0], out["c2s"][k][t, 2]))
+    return pd.DataFrame(rows, columns=["date", "hour", "H", "base_date", "pred", "qlo", "qhi", "c2s_qlo", "c2s_qhi"])
+
+
+def resid_correct(new):
+    """Chronos-2 small 중앙값(pred) + λ × 잔차 예측 → pred. 원래 중앙값은 c2s 열에 남김. 모델·피처가 없으면 보정 0."""
+    import joblib
+    from smp_forecast_app.src.features import build
+    from smp_forecast_app.src.wz_resid import table
+    ch = json.loads((TAB / "WZ_choice.json").read_text(encoding="utf-8"))
+    lam = float(ch.get("잔차 보정 λ", 0))
+    new = new.assign(c2s=new["pred"], rhat=0.0)
+    if lam == 0:
+        return new
+    if not (MODELS / "wz_resid.pkl").exists():
+        train_resid()
+    m = joblib.load(MODELS / "wz_resid.pkl")
+    parts = []
+    for H in range(1, 8):
+        nh = new[new["H"] == H]
+        c = nh[["date", "hour", "H", "c2s", "c2s_qlo", "c2s_qhi"]].set_axis(["date", "hour", "H", "pred", "qlo", "qhi"], axis=1)
+        d = table(H, c, build(H))
+        d = d[d["date"].isin(nh["date"])]
+        r = pd.Series(m["models"][H].predict(d[m["cols"]]), index=pd.MultiIndex.from_frame(d[["date", "hour"]]))
+        nh = nh.assign(rhat=nh.set_index(["date", "hour"]).index.map(r).astype(float))
+        miss = nh["rhat"].isna().sum()
+        if miss:
+            log(f"잔차 보정 H={H}: 피처 없는 {miss}행은 Chronos 그대로")
+        parts.append(nh.assign(rhat=nh["rhat"].fillna(0)))
+    new = pd.concat(parts)
+    return new.assign(pred=new["c2s"] + lam * new["rhat"])
 
 
 def weekly(bases, run_at):
     from common.calendar import build_calendar
     ch = json.loads((TAB / "WZ_choice.json").read_text(encoding="utf-8"))["범위"]
-    new = chronos_rows(bases)
+    new = resid_correct(chronos_rows(bases))
     act = load_smp_actual("육지")[["date", "hour", "smp"]].rename(columns={"smp": "y"})
     # 오차 이력: 백테스트(Chronos-2 small 예측 + Chronos-2 분위수) + 운영 기록
     hist = pd.read_csv(WZOO / "c2s.csv.gz", parse_dates=["date"])[["date", "hour", "H", "pred"]].merge(
@@ -147,7 +211,7 @@ def weekly(bases, run_at):
             res.append(nh.assign(lo=nh["qlo"].clip(lower=0), hi=nh["qhi"]))
             continue
         hh = hist[(hist["H"] == H) & ~hist["date"].isin(nh["date"])].merge(act, on=["date", "hour"])
-        d = pd.concat([hh, nh.drop(columns=["base_date"]).assign(y=np.nan)], ignore_index=True)
+        d = pd.concat([hh, nh[["date", "hour", "H", "pred", "qlo", "qhi"]].assign(y=np.nan)], ignore_index=True)
         d["offday"] = d["date"].map(cal).astype(bool)
         d = add_keys(d.sort_values(["date", "hour"]).reset_index(drop=True))
         d = d.assign(err=d["err"].fillna(0), rerr=d["rerr"].fillna(0))
@@ -159,7 +223,8 @@ def weekly(bases, run_at):
     r = pd.concat(res).assign(run_at=run_at)
     for c in ("base_date", "date"):
         r[c] = r[c].dt.strftime("%Y-%m-%d")
-    _append("hourly_log.csv", r[["run_at", "base_date", "H", "date", "hour", "pred", "lo", "hi", "qlo", "qhi"]].round(3),
+    _append("hourly_log.csv", r[["run_at", "base_date", "H", "date", "hour", "pred", "lo", "hi", "qlo", "qhi",
+                                 "c2s", "c2s_qlo", "c2s_qhi", "rhat"]].round(3),
             ["base_date", "H", "date", "hour"])
 
 

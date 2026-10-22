@@ -6,6 +6,7 @@
 출력: I+1 ~ I+7 시간별 분위수 0.1·0.5·0.9 → pred(중앙값), qlo, qhi (범위 후보로도 사용)
 모델 파일: 이 PC의 Hugging Face 캐시에 이미 있는 amazon/chronos-2, autogluon/chronos-2-small, amazon/chronos-bolt-small
 실행: python -m smp_forecast_app.src.wz_chronos c2 c2s bolt
+      python -m smp_forecast_app.src.wz_chronos --hist c2s   → 대상일 2023~2024 예측을 wzoo_hist/에 (잔차 보정 학습용, wz_resid)
 """
 import sys
 import time
@@ -16,13 +17,16 @@ import torch
 
 from common.calendar import build_calendar
 from common.loaders import load_smp_actual
+from common.config import PROCESSED_DIR
 from smp_forecast_app.src.wz_common import OUT, save
+
+HIST = PROCESSED_DIR / "smp_forecast_app" / "wzoo_hist"
 
 CTX = 2048
 MODELS = {"c2": "amazon/chronos-2", "c2s": "autogluon/chronos-2-small", "bolt": "amazon/chronos-bolt-small"}
 
 
-def main(tags):
+def main(tags, hist=False):
     from chronos import BaseChronosPipeline
     s = load_smp_actual("육지").sort_values(["date", "hour"]).reset_index(drop=True)
     vals = s["smp"].values.astype("float32")
@@ -32,10 +36,13 @@ def main(tags):
                "myeongjeol": cal["is_myeongjeol"].astype(float)}
     hourly = {k: np.repeat(v.values, 24).astype("float32") for k, v in cov_day.items()}
     cal_start = cal.index[0]
-    bases = [d for d in days if d >= pd.Timestamp("2024-12-25")]
+    lo, hi = ("2022-12-25", "2024-12-31") if hist else ("2024-12-25", "2100-01-01")
+    keep = ("2023-01-01", "2025-01-01") if hist else ("2025-01-01", "2100-01-01")
+    out_dir = HIST if hist else OUT
+    bases = [d for d in days if pd.Timestamp(lo) <= d < pd.Timestamp(hi)]
     pos = {d: i for i, d in enumerate(days)}
     for tag in tags:
-        if (OUT / f"{tag}.csv.gz").exists():
+        if (out_dir / f"{tag}.csv.gz").exists():
             print(f"{tag}: 이미 있음 → 건너뜀")
             continue
         t0 = time.time()
@@ -64,9 +71,17 @@ def main(tags):
                     rows.append((I + pd.Timedelta(days=H), h, H, qq[t, 1], qq[t, 0], qq[t, 2]))
             print(f"{tag} {k + len(batch)}/{len(bases)} ({time.time()-t0:.0f}s)", flush=True)
         out = pd.DataFrame(rows, columns=["date", "hour", "H", "pred", "qlo", "qhi"])
-        save(tag, out[out["date"] >= "2025-01-01"])
+        out = out[(out["date"] >= keep[0]) & (out["date"] < keep[1])]
+        if hist:
+            HIST.mkdir(parents=True, exist_ok=True)
+            out.round(3).to_csv(HIST / f"{tag}.csv.gz", index=False, encoding="utf-8")
+        else:
+            save(tag, out)
         print(f"{tag} 완료 ({time.time()-t0:.0f}s)", flush=True)
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:] or ["c2", "c2s", "bolt"])
+    args = sys.argv[1:]
+    hist = "--hist" in args
+    args = [a for a in args if a != "--hist"]
+    main(args or (["c2s"] if hist else ["c2", "c2s", "bolt"]), hist=hist)

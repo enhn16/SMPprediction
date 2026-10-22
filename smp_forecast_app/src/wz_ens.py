@@ -2,7 +2,8 @@
 
 공정한 선택 절차 (2026 채점 전 고정)
   1) 개별 모델: 2025 상반기(H1)·하반기(H2)·전체 MAE
-  2) 앙상블 후보 ~20종: 순위·가중치는 2025 상반기로 정하고, 2025 하반기 MAE로 앙상블끼리 비교 → 1위 유형 선택
+  2) 앙상블 후보 ~20종 + 'Chronos-2 small + λ × 잔차 보정'(wz_resid, 피처 묶음 3종, λ ∈ LAMBDAS):
+     순위·가중치·λ는 2025 상반기로 정하고, 2025 하반기 MAE로 앙상블끼리 비교 → 1위 유형 선택
      (0.05원 이내 동률이면 구성 모델 수가 적은 쪽)
   3) 고른 유형을 2025 전체로 다시 맞춤(순위·가중치) → 2026 한 번 채점 (일주일은 1차 채점 이후라 '2차 시험' 표기)
   4) 범위: 고른 앙상블에 오차 분위수형·보정 분위수 회귀(LightGBM 분위수, Chronos-2 분위수) 적용,
@@ -23,6 +24,7 @@ from common.config import PROCESSED_DIR, ROOT
 from smp_forecast_app.src.intervals import add_keys, methods, report, score, select
 from smp_forecast_app.src.model import cqr
 from smp_forecast_app.src.wz_common import HS, OUT, actual_table
+from smp_forecast_app.src.wz_resid import RES, SETS as RESID_SETS
 
 TAB = ROOT / "smp_forecast_app" / "outputs" / "tables"
 NAMES = {"naive7": "기준: 지난주 같은 시간", "same": "기준: 최근 같은 유형일", "lgb": "LightGBM", "xgb": "XGBoost",
@@ -32,6 +34,10 @@ NAMES = {"naive7": "기준: 지난주 같은 시간", "same": "기준: 최근 �
 FAMILY = {"부스팅": ["lgb", "xgb", "cat"], "트리": ["rf", "et"], "선형·GAM": ["ridge", "ebm"], "신경망(표)": ["mlp", "tabpfn"],
           "시계열 신경망": ["lstm", "gru", "cnn", "transformer"], "Chronos": ["c2", "c2s", "bolt"]}
 BASELINES = ["naive7", "same"]
+LAMBDAS = (0.25, 0.5, 0.75, 1.0)
+RESID_LAMBDA = {}   # 잔차 보정 후보 이름 → 마지막으로 맞춘 λ
+for _k in RESID_SETS:
+    NAMES[f"rhat_{_k}"] = f"잔차 보정 LightGBM({_k})"
 
 
 def load_all():
@@ -56,12 +62,17 @@ def mae(y, p):
     return float((y[ok] - p[ok]).abs().mean())
 
 
-def ens_candidates(P, fit_mask, models, family=None, hs=HS):
-    """fit_mask 구간으로 순위·가중치를 정한 앙상블 후보들 → {이름: (예측 Series, 구성 설명)}."""
+def ens_candidates(P, fit_mask, models, family=None, hs=HS, resid=None):
+    """fit_mask 구간으로 순위·가중치를 정한 앙상블 후보들 → {이름: (예측 Series, 구성 설명)}.
+    resid: {피처 묶음: P의 잔차 예측 열 이름} — 'Chronos-2 small + λ × 잔차 보정' 후보 (λ는 fit_mask로 선택)."""
     family = family or FAMILY   # 한 달 예측(mz_ens)에서 계열·지평 묶음을 바꿔 씀
     F = P[fit_mask]
     rank = sorted(models, key=lambda m: mae(F["y"], F[m]))
     out = {}
+    for k, col in (resid or {}).items():
+        lam = min(LAMBDAS, key=lambda l: mae(F["y"], F["c2s"] + l * F[col]))
+        out[f"Chronos-2 small + 잔차 보정({k})"] = (P["c2s"] + lam * P[col], ["c2s", col])
+        RESID_LAMBDA[f"Chronos-2 small + 잔차 보정({k})"] = lam
 
     def avg(ms, w=None):
         w = np.ones(len(ms)) / len(ms) if w is None else np.asarray(w) / np.sum(w)
@@ -123,6 +134,12 @@ def ens_candidates(P, fit_mask, models, family=None, hs=HS):
 def main():
     P = load_all()
     models = [m for m in NAMES if m in P.columns and m not in BASELINES]
+    resid = {}
+    for k in RESID_SETS:
+        if (RES / f"{k}.csv.gz").exists():
+            r = pd.read_csv(RES / f"{k}.csv.gz", parse_dates=["date"]).rename(columns={"rhat": f"rhat_{k}"})
+            P = P.merge(r, on=["date", "hour", "H"], how="left")
+            resid[k] = f"rhat_{k}"
     y25 = P["date"].dt.year == 2025
     h1 = y25 & (P["date"] < "2025-07-01")
     h2 = y25 & (P["date"] >= "2025-07-01")
@@ -142,21 +159,24 @@ def main():
     print(mt[["모델", "2025 상반기", "2025 하반기", "2025 전체", "2025 D+1", "2025 D+7"]].round(2).to_string(index=False), flush=True)
 
     # 앙상블 선택: 상반기로 맞추고 하반기로 비교
-    cands, rank = ens_candidates(P, h1 & full, models)
+    cands, rank = ens_candidates(P, h1 & full, models, resid=resid)
+    lam_h1 = dict(RESID_LAMBDA)
     erows = [{"앙상블": "단일 최고 (" + NAMES[rank[0]] + ")", "구성": NAMES[rank[0]], "구성 수": 1,
               "2025 하반기": mae(P.loc[h2 & full, "y"], P.loc[h2 & full, rank[0]])}]
     for name, (p, ms) in cands.items():
-        erows.append({"앙상블": name, "구성": ", ".join(NAMES[m] for m in ms), "구성 수": len(ms),
+        erows.append({"앙상블": name + (f" λ={lam_h1[name]}" if name in lam_h1 else ""),
+                      "구성": ", ".join(NAMES[m] for m in ms), "구성 수": len(ms),
                       "2025 하반기": mae(P.loc[h2 & full, "y"], p[h2 & full])})
     et = pd.DataFrame(erows).sort_values("2025 하반기")
     et.round(3).to_csv(TAB / "WZ2_ensembles_2025H2.csv", index=False, encoding="utf-8-sig")
     print(et.round(3).to_string(index=False), flush=True)
     top = et.iloc[0]["2025 하반기"]
     pick = et[et["2025 하반기"] <= top + 0.05].sort_values(["구성 수", "2025 하반기"]).iloc[0]["앙상블"]
+    pick = pick.split(" λ=")[0]
     print(f"\n선택: {pick}\n", flush=True)
 
     # 2025 전체로 다시 맞춤 → 최종 예측
-    cands_full, rank_full = ens_candidates(P, y25 & full, models)
+    cands_full, rank_full = ens_candidates(P, y25 & full, models, resid=resid)
     if pick.startswith("단일 최고"):
         P["pred"], members = P[rank_full[0]], [rank_full[0]]
     else:
@@ -229,7 +249,10 @@ def main():
     W[keep].round(2).to_csv(PROCESSED_DIR / "smp_forecast_app" / "WZ_predictions_hourly.csv", index=False, encoding="utf-8-sig")
     info = {"선택 앙상블": pick, "구성": [NAMES[m] for m in members], "단일 최고(2025)": NAMES[rank_full[0]],
             "범위": {str(k): v for k, v in ichoice.items()}, "선택 절차": "상반기로 맞춤 → 2025 하반기 비교 → 2025 전체로 재적합",
-            "시험": "2026-01-01 ~ (일주일 예측 2차 시험)"}
+            "시험": "2026-01-01 ~ (일주일 예측 3차 시험: 잔차 보정 후보 추가)"}
+    if pick in RESID_LAMBDA:
+        info["잔차 보정 λ"] = RESID_LAMBDA[pick]
+        info["잔차 보정 피처 묶음"] = pick.split("(")[1].rstrip(")")
     (TAB / "WZ_choice.json").write_text(json.dumps(info, ensure_ascii=False, indent=1), encoding="utf-8")
     pd.set_option("display.width", 250)
     print(test.round(3).to_string(index=False))
