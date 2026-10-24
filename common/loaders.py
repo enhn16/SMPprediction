@@ -367,3 +367,112 @@ def load_openmeteo_prev2() -> pd.DataFrame:
             rows.append(g.assign(model=model))
     d = pd.concat(rows).rename_axis("date").reset_index()
     return d.groupby(["date", "model"]).agg(rad_mid=("rad", "mean"), cloud_mid=("cloud", "mean")).reset_index()
+
+
+def load_kma_afs_jeju() -> pd.DataFrame:
+    """data/raw/api/kma_afs의 제주 구역(JEJU_REGIONS) 단기 육상예보 → [reg, tm_fc, tm_ef, wd1, wd_tr, wd2, ta, pop, sky, rain, wf].
+
+    육지용 load_kma_regional_fcst()와 열 위치는 같고 풍향(wd1·wd2: 16방위, wd_tr: 풍향 경향 코드)을 더 읽는다.
+    원문에 두 레코드가 한 줄로 붙은 경우(월 경계)가 있어 레코드 시작(구역코드 + 발표시각)으로 다시 나눈다.
+    """
+    import re
+    from common.collect.kma_regional_fcst import JEJU_REGIONS
+    start = re.compile(r"(?=\b(?:%s) \d{12} \d{12})" % "|".join(JEJU_REGIONS))
+    rows = []
+    for reg in JEJU_REGIONS:
+        for p in sorted((API_RAW_DIR / "kma_afs").glob(f"afs_{reg}_*.txt")):
+            for rec in start.split(p.read_text(encoding="utf-8")):
+                parts = rec.split()
+                if len(parts) < 17:
+                    continue
+                rows.append({"reg": parts[0], "tm_fc": parts[1], "tm_ef": parts[2], "wd1": parts[9], "wd_tr": parts[10],
+                             "wd2": parts[11], "ta": parts[12], "pop": parts[13], "sky": parts[14], "rain": parts[15],
+                             "wf": " ".join(parts[16:]).strip('"')})
+    df = pd.DataFrame(rows)
+    df["tm_fc"] = pd.to_datetime(df["tm_fc"], format="%Y%m%d%H%M")
+    df["tm_ef"] = pd.to_datetime(df["tm_ef"], format="%Y%m%d%H%M")
+    df["ta"] = pd.to_numeric(df["ta"], errors="coerce").replace(-99, np.nan)
+    df["pop"] = pd.to_numeric(df["pop"], errors="coerce")
+    df["sky"] = df["sky"].str[-1].astype(int)
+    df["rain"] = (pd.to_numeric(df["rain"], errors="coerce") > 0).astype(int)
+    return df.drop_duplicates(["reg", "tm_fc", "tm_ef"]).sort_values(["reg", "tm_fc", "tm_ef"]).reset_index(drop=True)
+
+
+def load_openmeteo_prev2_jeju() -> pd.DataFrame:
+    """data/raw/api/openmeteo_jeju (제주 4지점, 2일 전 실행 예보) → 시간별 [time, model, point, rad, cloud, ws10, ws100].
+
+    time은 시작 시각(Asia/Seoul): HH시 값 = HH:00 ~ HH+1:00 구간(일사 Wh/m²) 또는 그 시각(운량 %, 풍속 km/h).
+    육지 load_openmeteo_prev2()와 폴더가 달라 서로 섞이지 않는다. JMA는 100m 풍속 없음(NaN).
+    """
+    import json
+    from common.collect.openmeteo_prevruns import JEJU_CITIES
+    names = list(JEJU_CITIES)
+    rows = []
+    for p in sorted((API_RAW_DIR / "openmeteo_jeju").glob("prev2_*.json")):
+        model = p.name.split("_")[1]
+        data = json.loads(p.read_text(encoding="utf-8"))
+        for name, loc in zip(names, data if isinstance(data, list) else [data]):
+            h = pd.DataFrame(loc["hourly"]).rename(columns={
+                "shortwave_radiation_previous_day2": "rad", "cloud_cover_previous_day2": "cloud",
+                "wind_speed_10m_previous_day2": "ws10", "wind_speed_100m_previous_day2": "ws100"})
+            h["time"] = pd.to_datetime(h["time"])
+            rows.append(h.assign(model=model, point=name, file_end=p.stem.split("_")[-1]))
+    d = pd.concat(rows, ignore_index=True)
+    # 기간이 겹치는 파일은 나중(끝 날짜가 늦은) 파일 값을 쓴다
+    d = d.sort_values("file_end").drop_duplicates(["time", "model", "point"], keep="last").drop(columns="file_end")
+    return d[["time", "model", "point", "rad", "cloud", "ws10", "ws100"]].sort_values(["model", "point", "time"]).reset_index(drop=True)
+
+
+def load_openmeteo_prevx_jeju() -> pd.DataFrame:
+    """data/raw/api/openmeteo_jeju/prevx_*.json (제주 4지점, k=3~7일 전 실행 예보) → 시간별 [time, model, point, k, rad, cloud, ws10, ws100].
+
+    H일 뒤 예측(판단일 D-H 15시)에는 k = H+1일 전 실행분만 쓴다 (2일 전 실행분을 H=1에만 쓰는 규칙과 같음).
+    """
+    import json
+    from common.collect.openmeteo_prevruns import JEJU_CITIES
+    names = list(JEJU_CITIES)
+    rows = []
+    for p in sorted((API_RAW_DIR / "openmeteo_jeju").glob("prevx_*.json")):
+        model = p.name.split("_")[1]
+        data = json.loads(p.read_text(encoding="utf-8"))
+        for name, loc in zip(names, data if isinstance(data, list) else [data]):
+            h = pd.DataFrame(loc["hourly"])
+            t = pd.to_datetime(h["time"])
+            for k in range(3, 8):
+                part = pd.DataFrame({"time": t, "rad": h[f"shortwave_radiation_previous_day{k}"],
+                                     "cloud": h[f"cloud_cover_previous_day{k}"], "ws10": h[f"wind_speed_10m_previous_day{k}"],
+                                     "ws100": h[f"wind_speed_100m_previous_day{k}"]})
+                if part[["rad", "ws10"]].notna().any().any():
+                    rows.append(part.assign(model=model, point=name, k=k, file_end=p.stem.split("_")[-1]))
+    d = pd.concat(rows, ignore_index=True)
+    d = d.sort_values("file_end").drop_duplicates(["time", "model", "point", "k"], keep="last").drop(columns="file_end")
+    return d[["time", "model", "point", "k", "rad", "cloud", "ws10", "ws100"]].sort_values(["k", "model", "point", "time"]).reset_index(drop=True)
+
+
+def load_kpx_jeju_sukub() -> pd.DataFrame:
+    """data/raw/api/kpx_jeju_sukub (제주계통운영정보 5분 실적) → [time, supply, demand, renew, solar, wind] (MW).
+
+    time = 5분 시각(KST). demand = 발전단 수요(currPwrTot). 송전단 수요(currNtPwrTot)는 2026-06 이전 0이라 읽지 않는다.
+    과거분은 사용자 내려받기 파일 data/raw/chejusukub*.csv (cp949, 2024-01 ~ 2026-10-23 09:15)를 함께 읽고, 겹치는 시각은 파일 값을 쓴다.
+    (2024-10-01 ~ 2025-06-24는 API 수요가 파일보다 30~60MW 낮음. 파일 쪽이 하루전 수요예측 대비 비율이 경계에서 튀지 않아 일관됨)
+    공급능력·수요 0 이하(2026년 41개 등)는 결측 처리.
+    """
+    files = sorted((API_RAW_DIR / "kpx_jeju_sukub").glob("jeju5m_*.csv"))
+    df = pd.concat([pd.read_csv(p, dtype={"baseDatetime": str}) for p in files], ignore_index=True)
+    out = pd.DataFrame({"time": pd.to_datetime(df["baseDatetime"], format="%Y%m%d%H%M%S"),
+                        "supply": pd.to_numeric(df["suppAbility"], errors="coerce"),
+                        "demand": pd.to_numeric(df["currPwrTot"], errors="coerce"),
+                        "renew": pd.to_numeric(df["renewPwrTot"], errors="coerce"),
+                        "solar": pd.to_numeric(df["renewPwrSolar"], errors="coerce"),
+                        "wind": pd.to_numeric(df["renewPwrWind"], errors="coerce")})
+    dl = [pd.read_csv(p, encoding="cp949", dtype=str) for p in sorted(RAW_DIR.glob("chejusukub*.csv"))]
+    if dl:
+        d = pd.concat(dl, ignore_index=True)
+        d.columns = ["time", "supply", "demand", "renew", "solar", "wind"]
+        d["time"] = pd.to_datetime(d["time"], format="%Y%m%d%H%M%S")
+        d[d.columns[1:]] = d[d.columns[1:]].apply(pd.to_numeric, errors="coerce")
+        out = pd.concat([d, out], ignore_index=True)   # 파일 먼저 → 겹치면 파일 값 유지
+    out = out.drop_duplicates("time").sort_values("time").reset_index(drop=True)
+    out.loc[out["supply"] <= 0, "supply"] = np.nan
+    out.loc[out["demand"] <= 0, ["demand", "renew", "solar", "wind"]] = np.nan
+    return out

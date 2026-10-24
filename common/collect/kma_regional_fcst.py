@@ -5,7 +5,9 @@
 판단 시각 15시에는 전날 11시 발표분까지 쓸 수 있다.
 
 호출 한 번에 최대 약 한 달. 구역·월별 파일로 저장, 지난 달은 건너뜀.
-실행: python -m common.collect.kma_regional_fcst [시작월 YYYYMM] [끝월 YYYYMM]
+실행: python -m common.collect.kma_regional_fcst [시작월 YYYYMM] [끝월 YYYYMM] [jeju]
+  세 번째 인자 jeju → 제주 구역(JEJU_REGIONS)만 수집. 육지 피처는 REGIONS로 거르므로 같은 폴더에 둬도 섞이지 않는다.
+  (REGIONS에 제주를 넣지 말 것: 육지 피처가 바뀐다)
 저장: data/raw/api/kma_afs/afs_{구역코드}_{YYYYMM}.txt (원문 그대로, UTF-8)
 """
 import os
@@ -23,14 +25,17 @@ OUT_DIR = API_RAW_DIR / "kma_afs"
 # 태양광이 많은 7개 지점 (단기예보 도시 구역 코드)
 REGIONS = {"11C20101": "서산", "11F10201": "전주", "11F20501": "광주", "21F20801": "목포",
            "11H10501": "안동", "11H10701": "대구", "11H20701": "진주"}
+# 제주 전용 (과제2 제주 모델)
+JEJU_REGIONS = {"11G00201": "제주", "11G00401": "서귀포"}
 
 
-def main(start: str = "202312", end: str | None = None):
+def main(start: str = "202312", end: str | None = None, region: str = "육지"):
     key = os.getenv("KMA_APIHUB_KEY")  # common.config import 시 .env 로드됨
     end = end or date.today().strftime("%Y%m")
     this_month = date.today().strftime("%Y%m")
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    for reg, name in REGIONS.items():
+    regions = JEJU_REGIONS if region == "jeju" else REGIONS
+    for reg, name in regions.items():
         for m in pd.period_range(pd.Period(start, "M"), pd.Period(end, "M"), freq="M"):
             ym = m.strftime("%Y%m")
             out = OUT_DIR / f"afs_{reg}_{ym}.txt"
@@ -55,4 +60,4 @@ def main(start: str = "202312", end: str | None = None):
 
 
 if __name__ == "__main__":
-    main(*sys.argv[1:3])
+    main(*sys.argv[1:4])
