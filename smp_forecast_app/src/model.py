@@ -63,7 +63,7 @@ def point_metrics(y, p, naive) -> dict:
             "편의(원)": (p[ok] - y[ok]).mean()}
 
 
-def cqr(d, eval_mask, window=None, key=None, gap=1):
+def cqr(d, eval_mask, window=None, key=None, gap=1, clip0=True):
     """보정 분위수 회귀: 점수 e = max(qlo − y, y − qhi)의 (1−α) 분위수 c만큼 양쪽을 넓힘(음수면 좁힘).
     window=None → 평가 구간 직전 365일로 고정, 정수 → 매일 직전 window일."""
     d = d.copy()
@@ -85,7 +85,7 @@ def cqr(d, eval_mask, window=None, key=None, gap=1):
             end = day - pd.Timedelta(days=gap - 1)
             rows = d[(d["date"] < end) & (d["date"] >= end - pd.Timedelta(days=window))]
             c[part.index] = part["g"].map(qtab(rows)).values
-    lo = (ev["qlo"] - c).clip(lower=0)
+    lo = (ev["qlo"] - c).clip(lower=0) if clip0 else ev["qlo"] - c   # 제주는 clip0=False
     hi = ev["qhi"] + c
     return np.minimum(lo, ev["pred"]).values, np.maximum(hi, ev["pred"]).values
 

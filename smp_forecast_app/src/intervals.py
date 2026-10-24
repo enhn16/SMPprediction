@@ -26,12 +26,12 @@ def add_keys(d: pd.DataFrame) -> pd.DataFrame:
     return d
 
 
-def _apply(target: pd.DataFrame, q: pd.DataFrame, key: str, form: str) -> tuple[np.ndarray, np.ndarray]:
+def _apply(target: pd.DataFrame, q: pd.DataFrame, key: str, form: str, clip0: bool = True) -> tuple[np.ndarray, np.ndarray]:
     t = target[[key, "pred"]].merge(q, left_on=key, right_index=True, how="left")
     base = t["pred"].clip(lower=20) if form == "mult" else 1.0
     lo = t["pred"] + t["qlo"] * base
     hi = t["pred"] + t["qhi"] * base
-    return lo.clip(lower=0).values, hi.values  # 육지 SMP는 음수 없음(최저 0원)
+    return (lo.clip(lower=0) if clip0 else lo).values, hi.values  # 육지 SMP는 음수 없음(최저 0원). 제주는 clip0=False
 
 
 def _quant(rows: pd.DataFrame, key: str, form: str, min_n: int = 30) -> pd.DataFrame:
@@ -44,7 +44,7 @@ def _quant(rows: pd.DataFrame, key: str, form: str, min_n: int = 30) -> pd.DataF
     return q[["qlo", "qhi"]]
 
 
-def static_interval(d, eval_mask, key="k_hour", form="add", cal_days=None, gap=1):
+def static_interval(d, eval_mask, key="k_hour", form="add", cal_days=None, gap=1, clip0=True):
     """고정형: 평가 구간 시작 전 오차로 분위수를 한 번 계산해 평가 구간 전체에 적용.
     gap = 지평 H: 대상일 D의 판단일은 D-H이므로 D-H일까지의 오차만 쓸 수 있다 (H=1이면 D-1까지)."""
     ev = d[eval_mask]
@@ -52,10 +52,10 @@ def static_interval(d, eval_mask, key="k_hour", form="add", cal_days=None, gap=1
     cal = d[d["date"] < start]
     if cal_days:
         cal = cal[cal["date"] >= start - pd.Timedelta(days=cal_days)]
-    return _apply(ev, _quant(cal, key, form), key, form)
+    return _apply(ev, _quant(cal, key, form), key, form, clip0)
 
 
-def rolling_interval(d, eval_mask, key="k_hour_off", form="add", window=90, gap=1):
+def rolling_interval(d, eval_mask, key="k_hour_off", form="add", window=90, gap=1, clip0=True):
     """매일 갱신형: 대상일 D마다 [D-H-window+1, D-H] 오차로 분위수를 다시 계산 (H=gap, 기본 1)."""
     ev = d[eval_mask]
     lo = pd.Series(np.nan, index=ev.index)
@@ -64,26 +64,26 @@ def rolling_interval(d, eval_mask, key="k_hour_off", form="add", window=90, gap=
     for day, part in ev.groupby("date"):
         end = day - pd.Timedelta(days=gap - 1)
         rows = hist[(hist["date"] < end) & (hist["date"] >= end - pd.Timedelta(days=window))]
-        l, h = _apply(part, _quant(rows, key, form, min_n=max(8, window // 10)), key, form)
+        l, h = _apply(part, _quant(rows, key, form, min_n=max(8, window // 10)), key, form, clip0)
         lo[part.index], hi[part.index] = l, h
     return lo.values, hi.values
 
 
-def methods(gap: int = 1) -> dict:
-    """비교할 범위 방법 (이름 → 함수(d, eval_mask)). 2026 채점 전에 고정. gap = 지평 H."""
-    g = gap
+def methods(gap: int = 1, clip0: bool = True) -> dict:
+    """비교할 범위 방법 (이름 → 함수(d, eval_mask)). 2026 채점 전에 고정. gap = 지평 H. clip0=False: 하한을 0원에서 자르지 않음(제주)."""
+    g, c0 = gap, clip0
     m = {
-        "고정·시간대": lambda d, e: static_interval(d, e, "k_hour", gap=g),
-        "고정·시간대×휴무일": lambda d, e: static_interval(d, e, "k_hour_off", gap=g),
-        "고정·시간대×휴무일·최근1년": lambda d, e: static_interval(d, e, "k_hour_off", cal_days=365, gap=g),
-        "고정·시간대×휴무일·배수형·최근1년": lambda d, e: static_interval(d, e, "k_hour_off", "mult", 365, gap=g),
+        "고정·시간대": lambda d, e: static_interval(d, e, "k_hour", gap=g, clip0=c0),
+        "고정·시간대×휴무일": lambda d, e: static_interval(d, e, "k_hour_off", gap=g, clip0=c0),
+        "고정·시간대×휴무일·최근1년": lambda d, e: static_interval(d, e, "k_hour_off", cal_days=365, gap=g, clip0=c0),
+        "고정·시간대×휴무일·배수형·최근1년": lambda d, e: static_interval(d, e, "k_hour_off", "mult", 365, gap=g, clip0=c0),
     }
     for w in (90, 180, 365):
-        m[f"갱신·시간대×휴무일·{w}일"] = (lambda w: lambda d, e: rolling_interval(d, e, "k_hour_off", "add", w, g))(w)
-        m[f"갱신·시간대×휴무일·배수형·{w}일"] = (lambda w: lambda d, e: rolling_interval(d, e, "k_hour_off", "mult", w, g))(w)
+        m[f"갱신·시간대×휴무일·{w}일"] = (lambda w: lambda d, e: rolling_interval(d, e, "k_hour_off", "add", w, g, c0))(w)
+        m[f"갱신·시간대×휴무일·배수형·{w}일"] = (lambda w: lambda d, e: rolling_interval(d, e, "k_hour_off", "mult", w, g, c0))(w)
     for w in (28, 56):
-        m[f"갱신·시간대묶음×휴무일·{w}일"] = (lambda w: lambda d, e: rolling_interval(d, e, "k_band_off", "add", w, g))(w)
-        m[f"갱신·시간대묶음×휴무일·배수형·{w}일"] = (lambda w: lambda d, e: rolling_interval(d, e, "k_band_off", "mult", w, g))(w)
+        m[f"갱신·시간대묶음×휴무일·{w}일"] = (lambda w: lambda d, e: rolling_interval(d, e, "k_band_off", "add", w, g, c0))(w)
+        m[f"갱신·시간대묶음×휴무일·배수형·{w}일"] = (lambda w: lambda d, e: rolling_interval(d, e, "k_band_off", "mult", w, g, c0))(w)
     return m
 
 

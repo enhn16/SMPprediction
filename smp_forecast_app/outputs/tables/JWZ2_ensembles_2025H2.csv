@@ -1,0 +1,45 @@
+﻿앙상블,구성,구성 수,2025 하반기
+탐욕적 전진 선택(Caruana),"1D-CNN, 육지 예측 + 잔차 보정(제주외부+계통·l1), 육지 예측 + 잔차 보정(제주외부·l1), 육지 예측 + 잔차 보정(전체·l1), 육지 Chronos-2 small, LightGBM(절대오차), Chronos-2 small + 잔차 보정(제주외부·l1), LightGBM, Ridge",13,9.645
+단일 최고 (육지 예측 + 잔차 보정(제주외부·l1)),육지 예측 + 잔차 보정(제주외부·l1),2,9.679
+육지 예측 + 잔차 보정(제주외부·l1) λ=0.25,육지 예측 + 잔차 보정(제주외부·l1),2,9.679
+지평별 최고 모델,"육지 예측 + 잔차 보정(전체·l1), 육지 예측 + 잔차 보정(제주외부+계통·l1), 육지 예측 + 잔차 보정(제주외부·l1)",6,9.684
+상위 3개 평균,"육지 예측 + 잔차 보정(제주외부·l1), 육지 예측 + 잔차 보정(제주외부+계통·l1), 육지 예측 + 잔차 보정(전체·l1)",6,9.693
+육지 예측 + 잔차 보정(제주외부·l2) λ=0.1,육지 예측 + 잔차 보정(제주외부·l2),2,9.695
+육지 예측 + 잔차 보정(제주외부+계통·l1) λ=0.25,육지 예측 + 잔차 보정(제주외부+계통·l1),2,9.695
+상위 5개 중앙값,"육지 예측 + 잔차 보정(제주외부·l1), 육지 예측 + 잔차 보정(제주외부+계통·l1), 육지 예측 + 잔차 보정(전체·l1), 육지 예측 + 잔차 보정(전체+계통·l1), 육지 예측 + 잔차 보정(제주외부+계통·l2)",10,9.696
+상위 7개 평균,"육지 예측 + 잔차 보정(제주외부·l1), 육지 예측 + 잔차 보정(제주외부+계통·l1), 육지 예측 + 잔차 보정(전체·l1), 육지 예측 + 잔차 보정(전체+계통·l1), 육지 예측 + 잔차 보정(제주외부+계통·l2), 육지 예측 + 잔차 보정(제주외부·l2), 육지 예측 + 잔차 보정(전체·l2)",14,9.697
+상위 5개 평균,"육지 예측 + 잔차 보정(제주외부·l1), 육지 예측 + 잔차 보정(제주외부+계통·l1), 육지 예측 + 잔차 보정(전체·l1), 육지 예측 + 잔차 보정(전체+계통·l1), 육지 예측 + 잔차 보정(제주외부+계통·l2)",10,9.7
+상위 5개 오차역수 가중,"육지 예측 + 잔차 보정(제주외부·l1), 육지 예측 + 잔차 보정(제주외부+계통·l1), 육지 예측 + 잔차 보정(전체·l1), 육지 예측 + 잔차 보정(전체+계통·l1), 육지 예측 + 잔차 보정(제주외부+계통·l2)",10,9.7
+육지 예측 + 잔차 보정(전체·l2) λ=0.1,육지 예측 + 잔차 보정(전체·l2),2,9.706
+육지 예측 + 잔차 보정(제주외부+계통·l2) λ=0.1,육지 예측 + 잔차 보정(제주외부+계통·l2),2,9.709
+육지 예측 + 잔차 보정(전체+계통·l2) λ=0.1,육지 예측 + 잔차 보정(전체+계통·l2),2,9.711
+육지 예측 + 잔차 보정(전체·l1) λ=0.25,육지 예측 + 잔차 보정(전체·l1),2,9.722
+잔차 보정 평균,"Chronos-2 small + 잔차 보정(전체+계통·l1), Chronos-2 small + 잔차 보정(전체+계통·l2), Chronos-2 small + 잔차 보정(전체·l1), Chronos-2 small + 잔차 보정(전체·l2), Chronos-2 small + 잔차 보정(제주외부+계통·l1), Chronos-2 small + 잔차 보정(제주외부+계통·l2), Chronos-2 small + 잔차 보정(제주외부·l1), Chronos-2 small + 잔차 보정(제주외부·l2), Chronos-2 small+육지 + 잔차 보정(전체+계통·l1), Chronos-2 small+육지 + 잔차 보정(전체+계통·l2), Chronos-2 small+육지 + 잔차 보정(전체·l1), Chronos-2 small+육지 + 잔차 보정(전체·l2), Chronos-2 small+육지 + 잔차 보정(제주외부+계통·l1), Chronos-2 small+육지 + 잔차 보정(제주외부+계통·l2), Chronos-2 small+육지 + 잔차 보정(제주외부·l1), Chronos-2 small+육지 + 잔차 보정(제주외부·l2), 육지 예측 + 잔차 보정(전체+계통·l1), 육지 예측 + 잔차 보정(전체+계통·l2), 육지 예측 + 잔차 보정(전체·l1), 육지 예측 + 잔차 보정(전체·l2), 육지 예측 + 잔차 보정(제주외부+계통·l1), 육지 예측 + 잔차 보정(제주외부+계통·l2), 육지 예측 + 잔차 보정(제주외부·l1), 육지 예측 + 잔차 보정(제주외부·l2)",48,9.739
+육지 예측 + 잔차 보정(전체+계통·l1) λ=0.25,육지 예측 + 잔차 보정(전체+계통·l1),2,9.739
+Chronos-2 small+육지 + 잔차 보정(제주외부·l1) λ=0.5,Chronos-2 small+육지 + 잔차 보정(제주외부·l1),2,9.75
+Chronos-2 small+육지 + 잔차 보정(제주외부·l2) λ=0.1,Chronos-2 small+육지 + 잔차 보정(제주외부·l2),2,9.766
+Chronos-2 small+육지 + 잔차 보정(제주외부+계통·l2) λ=0.1,Chronos-2 small+육지 + 잔차 보정(제주외부+계통·l2),2,9.772
+Chronos-2 small+육지 + 잔차 보정(전체·l2) λ=0.1,Chronos-2 small+육지 + 잔차 보정(전체·l2),2,9.779
+Chronos-2 small+육지 + 잔차 보정(전체+계통·l2) λ=0.1,Chronos-2 small+육지 + 잔차 보정(전체+계통·l2),2,9.783
+Chronos 평균,"Chronos-2, Chronos-2 small, Chronos-Bolt small, Chronos-2 + 육지 공변량, Chronos-2 small + 육지 공변량",5,9.8
+Chronos-2 small+육지 + 잔차 보정(제주외부+계통·l1) λ=0.5,Chronos-2 small+육지 + 잔차 보정(제주외부+계통·l1),2,9.8
+육지 평균,"육지 예측 그대로, 육지 Chronos-2 small",2,9.825
+Chronos-2 small+육지 + 잔차 보정(전체·l1) λ=0.5,Chronos-2 small+육지 + 잔차 보정(전체·l1),2,9.852
+Chronos-2 small+육지 + 잔차 보정(전체+계통·l1) λ=0.5,Chronos-2 small+육지 + 잔차 보정(전체+계통·l1),2,9.87
+전부 평균,"육지 예측 그대로, 육지 Chronos-2 small, Chronos-2, Chronos-2 small, Chronos-Bolt small, Chronos-2 + 육지 공변량, Chronos-2 small + 육지 공변량, LightGBM, LightGBM(절대오차), XGBoost, Ridge, CatBoost, 랜덤포레스트, 엑스트라트리, EBM, MLP, LSTM, GRU, 1D-CNN, Transformer, Chronos-2 small + 잔차 보정(전체+계통·l1), Chronos-2 small + 잔차 보정(전체+계통·l2), Chronos-2 small + 잔차 보정(전체·l1), Chronos-2 small + 잔차 보정(전체·l2), Chronos-2 small + 잔차 보정(제주외부+계통·l1), Chronos-2 small + 잔차 보정(제주외부+계통·l2), Chronos-2 small + 잔차 보정(제주외부·l1), Chronos-2 small + 잔차 보정(제주외부·l2), Chronos-2 small+육지 + 잔차 보정(전체+계통·l1), Chronos-2 small+육지 + 잔차 보정(전체+계통·l2), Chronos-2 small+육지 + 잔차 보정(전체·l1), Chronos-2 small+육지 + 잔차 보정(전체·l2), Chronos-2 small+육지 + 잔차 보정(제주외부+계통·l1), Chronos-2 small+육지 + 잔차 보정(제주외부+계통·l2), Chronos-2 small+육지 + 잔차 보정(제주외부·l1), Chronos-2 small+육지 + 잔차 보정(제주외부·l2), 육지 예측 + 잔차 보정(전체+계통·l1), 육지 예측 + 잔차 보정(전체+계통·l2), 육지 예측 + 잔차 보정(전체·l1), 육지 예측 + 잔차 보정(전체·l2), 육지 예측 + 잔차 보정(제주외부+계통·l1), 육지 예측 + 잔차 보정(제주외부+계통·l2), 육지 예측 + 잔차 보정(제주외부·l1), 육지 예측 + 잔차 보정(제주외부·l2)",68,9.892
+Chronos-2 small + 잔차 보정(제주외부·l2) λ=0.25,Chronos-2 small + 잔차 보정(제주외부·l2),2,9.912
+Chronos-2 small + 잔차 보정(제주외부·l1) λ=0.75,Chronos-2 small + 잔차 보정(제주외부·l1),2,9.923
+Chronos-2 small + 잔차 보정(제주외부+계통·l2) λ=0.25,Chronos-2 small + 잔차 보정(제주외부+계통·l2),2,9.944
+Chronos-2 small + 잔차 보정(전체·l2) λ=0.25,Chronos-2 small + 잔차 보정(전체·l2),2,9.947
+Chronos-2 small + 잔차 보정(전체+계통·l2) λ=0.25,Chronos-2 small + 잔차 보정(전체+계통·l2),2,9.973
+Chronos-2 small + 잔차 보정(제주외부+계통·l1) λ=0.75,Chronos-2 small + 잔차 보정(제주외부+계통·l1),2,9.993
+Chronos-2 small + 잔차 보정(전체·l1) λ=0.75,Chronos-2 small + 잔차 보정(전체·l1),2,10.082
+계열별 1위 평균,"육지 예측 그대로, LightGBM(절대오차), 랜덤포레스트, Ridge, MLP, 1D-CNN, Chronos-2 + 육지 공변량, 육지 예측 + 잔차 보정(제주외부·l1)",9,10.115
+Chronos-2 small + 잔차 보정(전체+계통·l1) λ=0.75,Chronos-2 small + 잔차 보정(전체+계통·l1),2,10.168
+시계열 신경망 평균,"LSTM, GRU, 1D-CNN, Transformer",4,10.332
+지평별 가중 평균(NNLS),"육지 예측 그대로, 육지 Chronos-2 small, Chronos-2, Chronos-2 small, Chronos-Bolt small, Chronos-2 + 육지 공변량, Chronos-2 small + 육지 공변량, LightGBM, LightGBM(절대오차), XGBoost, Ridge, CatBoost, 랜덤포레스트, 엑스트라트리, EBM, MLP, LSTM, GRU, 1D-CNN, Transformer, Chronos-2 small + 잔차 보정(전체+계통·l1), Chronos-2 small + 잔차 보정(전체+계통·l2), Chronos-2 small + 잔차 보정(전체·l1), Chronos-2 small + 잔차 보정(전체·l2), Chronos-2 small + 잔차 보정(제주외부+계통·l1), Chronos-2 small + 잔차 보정(제주외부+계통·l2), Chronos-2 small + 잔차 보정(제주외부·l1), Chronos-2 small + 잔차 보정(제주외부·l2), Chronos-2 small+육지 + 잔차 보정(전체+계통·l1), Chronos-2 small+육지 + 잔차 보정(전체+계통·l2), Chronos-2 small+육지 + 잔차 보정(전체·l1), Chronos-2 small+육지 + 잔차 보정(전체·l2), Chronos-2 small+육지 + 잔차 보정(제주외부+계통·l1), Chronos-2 small+육지 + 잔차 보정(제주외부+계통·l2), Chronos-2 small+육지 + 잔차 보정(제주외부·l1), Chronos-2 small+육지 + 잔차 보정(제주외부·l2), 육지 예측 + 잔차 보정(전체+계통·l1), 육지 예측 + 잔차 보정(전체+계통·l2), 육지 예측 + 잔차 보정(전체·l1), 육지 예측 + 잔차 보정(전체·l2), 육지 예측 + 잔차 보정(제주외부+계통·l1), 육지 예측 + 잔차 보정(제주외부+계통·l2), 육지 예측 + 잔차 보정(제주외부·l1), 육지 예측 + 잔차 보정(제주외부·l2)",68,10.666
+가중 평균(NNLS),"Chronos-2, LightGBM, XGBoost, MLP, 1D-CNN, Chronos-2 small + 잔차 보정(제주외부+계통·l1), Chronos-2 small + 잔차 보정(제주외부·l2)",9,10.666
+지평별 스태킹(Ridge),"육지 예측 그대로, 육지 Chronos-2 small, Chronos-2, Chronos-2 small, Chronos-Bolt small, Chronos-2 + 육지 공변량, Chronos-2 small + 육지 공변량, LightGBM, LightGBM(절대오차), XGBoost, Ridge, CatBoost, 랜덤포레스트, 엑스트라트리, EBM, MLP, LSTM, GRU, 1D-CNN, Transformer, Chronos-2 small + 잔차 보정(전체+계통·l1), Chronos-2 small + 잔차 보정(전체+계통·l2), Chronos-2 small + 잔차 보정(전체·l1), Chronos-2 small + 잔차 보정(전체·l2), Chronos-2 small + 잔차 보정(제주외부+계통·l1), Chronos-2 small + 잔차 보정(제주외부+계통·l2), Chronos-2 small + 잔차 보정(제주외부·l1), Chronos-2 small + 잔차 보정(제주외부·l2), Chronos-2 small+육지 + 잔차 보정(전체+계통·l1), Chronos-2 small+육지 + 잔차 보정(전체+계통·l2), Chronos-2 small+육지 + 잔차 보정(전체·l1), Chronos-2 small+육지 + 잔차 보정(전체·l2), Chronos-2 small+육지 + 잔차 보정(제주외부+계통·l1), Chronos-2 small+육지 + 잔차 보정(제주외부+계통·l2), Chronos-2 small+육지 + 잔차 보정(제주외부·l1), Chronos-2 small+육지 + 잔차 보정(제주외부·l2), 육지 예측 + 잔차 보정(전체+계통·l1), 육지 예측 + 잔차 보정(전체+계통·l2), 육지 예측 + 잔차 보정(전체·l1), 육지 예측 + 잔차 보정(전체·l2), 육지 예측 + 잔차 보정(제주외부+계통·l1), 육지 예측 + 잔차 보정(제주외부+계통·l2), 육지 예측 + 잔차 보정(제주외부·l1), 육지 예측 + 잔차 보정(제주외부·l2)",68,12.412
+부스팅 평균,"LightGBM, LightGBM(절대오차), XGBoost, CatBoost",4,12.723
+트리 평균,"랜덤포레스트, 엑스트라트리",2,12.836
+선형·GAM 평균,"Ridge, EBM",2,15.083
