@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { D } from './data'
+import { D, HAS_JEJU, REGION, setRegion, type Region } from './data'
 import { lab } from './fmt'
 import { Week } from './pages/Week'
 import { Month } from './pages/Month'
@@ -26,8 +26,21 @@ function Icon({ d }: { d: string }) {
   return <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
 }
 
+// 계통: 주소의 ?region=제주 → 지난번 선택 → 육지
+function savedRegion(): Region {
+  const q = new URLSearchParams(location.search).get('region')
+  if (q === '제주' || q === '육지') return q
+  try { return localStorage.getItem('smp-region') === '제주' ? '제주' : '육지' } catch { return '육지' }
+}
+
 export default function App() {
   const [st, setSt] = useState(parse)
+  const [region, setReg] = useState<Region>(() => { const r = savedRegion(); setRegion(r); return REGION })
+  const pick = (r: Region) => {
+    setRegion(r)
+    setReg(REGION)
+    try { localStorage.setItem('smp-region', REGION) } catch { /* 저장 못 해도 동작 */ }
+  }
   const [menu, setMenu] = useState(false)
   useEffect(() => {
     const h = () => { setSt(parse()); window.scrollTo(0, 0) }
@@ -43,9 +56,17 @@ export default function App() {
           <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand text-[13px] font-extrabold text-white">SMP</span>
           <div>
             <div className="text-[16px] font-extrabold leading-tight text-white">SMP 예측</div>
-            <div className="text-[11.5px] text-[#9fc7e6]">육지 계통한계가격</div>
+            <div className="text-[11.5px] text-[#9fc7e6]">{region} 계통한계가격</div>
           </div>
         </div>
+        {HAS_JEJU && (
+          <div className="mt-4 grid grid-cols-2 gap-1 rounded-lg bg-white/10 p-1" role="group" aria-label="계통 선택">
+            {(['육지', '제주'] as Region[]).map((r) => (
+              <button key={r} onClick={() => { pick(r); setMenu(false) }} aria-pressed={region === r}
+                className={`rounded-md py-1.5 text-[13px] font-bold transition ${region === r ? 'bg-white text-brand-dark shadow-sm' : 'text-[#d5e6f3] hover:bg-white/10'}`}>{r}</button>
+            ))}
+          </div>
+        )}
       </div>
       <div className="flex-1 space-y-1 px-3">
         {NAV.map((g, gi) => (
@@ -77,7 +98,7 @@ export default function App() {
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-[232px] bg-brand-ink lg:block">{side}</aside>
       {/* 모바일 상단 바 */}
       <header className="sticky top-0 z-20 flex h-14 items-center justify-between bg-brand-ink px-4 lg:hidden">
-        <span className="text-[16px] font-extrabold text-white">SMP 예측</span>
+        <span className="text-[16px] font-extrabold text-white">SMP 예측 <span className="text-[13px] font-semibold text-[#9fc7e6]">· {region}</span></span>
         <button onClick={() => setMenu(!menu)} className="rounded-lg p-2 text-white hover:bg-white/10" aria-label="메뉴">
           <Icon d={menu ? 'M6 6l12 12M18 6L6 18' : 'M4 7h16M4 12h16M4 17h16'} />
         </button>
@@ -89,7 +110,7 @@ export default function App() {
         </div>
       )}
       <main className="px-4 py-6 lg:ml-[232px] lg:px-8 lg:py-8">
-        <div className="mx-auto max-w-[1240px]">
+        <div key={region} className="mx-auto max-w-[1240px]">
           {st.r === 'week' && <Week />}
           {st.r === 'month' && <Month />}
           {st.r === 'flow' && <Flow />}

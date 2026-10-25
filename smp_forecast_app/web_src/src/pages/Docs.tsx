@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { D, STAT_NAME, T_STRONG, T_WARN, type Row, type Stat } from '../data'
+import { D, REGION, STAT_NAME, T_STRONG, T_WARN, type Row, type Stat } from '../data'
 import { fmt, pct, sgn } from '../fmt'
 import { Card, Kpis, PageHeader, Seg, Table, type Col } from '../components/ui'
 
@@ -279,7 +279,67 @@ const PAGES: Record<DocPage, { t: string; sub: string; el: () => ReactNode }> = 
   mo: { t: '한 달 예측', sub: '기준일 15시 → 7~34일 뒤 일별 4개 지표 + 80% 범위 · 참고 전망', el: MonthDoc },
 }
 
+// 제주 참고 문서: 제주 채팅 결과 (docs/JEJU.md 0절) — 성적은 계통별 표준 성적표 JF1·J3·JMZ2
+function JejuDocs() {
+  const J = (D as any).jdocs ?? {}
+  const JM: Row[] = J.metrics ?? []
+  const jm = (pred: string, per: string, seg: string): Row => JM.find((r) => r['예측'] === pred && String(r['기간']).startsWith(per) && r['구분'] === seg) ?? {}
+  const w = jm('일주일', '2026', '전체'), w1 = jm('일주일 D+1', '2026', '전체')
+  const dt: Row[] = J.dropTest ?? [], mt: Row[] = J.monthTest ?? []
+  const dAll = dt.find((r) => r['구분'] === '전체') ?? {}, dW = dt.find((r) => r['구분'] === '주의 이상') ?? {}, dS = dt.find((r) => r['구분'] === '강한 경보') ?? {}
+  const mrow = (k: string) => mt.find((r) => r['지표'] === k) ?? {}
+  const dc = J.dropChoice ?? {}, wc = J.weekChoice ?? {}, mc = J.monthChoice?.['지표별'] ?? {}
+  const lam = Object.values(wc['잔차 보정 λ(2025 전체)'] ?? {})[0] ?? 0.25
+  const final = [
+    { a: '다음 날 급락 판별', m: `과제1 제주 모델: 피처 ${J.dropFeatures ?? ''}개(제주 5분 계통 실적·Open-Meteo 풍속·일사·육지 정보·제주 Chronos 예측) + ${dc['모델'] ?? 'KNN(분류)'} (이웃 25일, 거리 가중) → 주의·강한 경보, 급락 확률`,
+      s: `급락 ${dAll['급락일'] ?? '-'}일 중 주의 이상 ${dW['적중'] ?? '-'}일 적중 (헛경보 ${dW['헛경보'] ?? '-'}) · 강한 경보 ${dS['적중'] ?? '-'}일 (헛경보 ${dS['헛경보'] ?? '-'}) · ROC-AUC ${n2(dAll['ROC-AUC'])}` },
+    { a: '일주일 예측 (D+1~D+7, 시간별)', m: `육지 일주일 최종 예측 + ${lam} × 제주 잔차 보정 (LightGBM L1, 제주 수요·날씨·제주−육지 관계)`,
+      s: `MAE ${n2(w.MAE)}원 · rMAE ${n3(w.rMAE)} · 포함률 ${pct(w['포함률'])} · 폭 ${fmt(w['평균 폭'])}원 (내일 시간별 MAE ${n2(w1.MAE)}원)` },
+    { a: '한 달 예측 (7~34일 뒤, 일별)', m: (Object.keys(STAT_NAME) as Stat[]).map((k) => `${STAT_NAME[k]}: ${mc[k]?.['점예측'] ?? '-'}`).join(' · '),
+      s: `일평균 rMAE ${n3(mrow('mean').rMAE)} · 포함률 ${pct(mrow('mean')['포함률'])} (참고 전망, 저녁은 기준보다 나쁨)` },
+  ]
+  const covC = (r: Row) => (r['포함률'] == null ? '' : r['포함률'] >= 0.75 && r['포함률'] <= 0.85 ? 'text-good' : 'text-bad font-semibold')
+  return (
+    <div className="space-y-5">
+      <PageHeader title="참고 문서 · 제주" sub="제주 SMP 예측·급락 판별 — 2025년 성적만으로 고르고 2026-01-01 ~ 10-23에 한 번 채점" />
+      <Kpis items={[
+        { k: '일주일 포함률 (2026)', v: pct(w['포함률']), s: '목표 75~85%', tone: tone(w['포함률']) },
+        { k: '일주일 MAE (2026)', v: `${n2(w.MAE)}원`, s: `단순 기준 대비 rMAE ${n3(w.rMAE)}` },
+        { k: '급락 적중 (2026)', v: `${dW['적중'] ?? '-'} / ${dAll['급락일'] ?? '-'}일`, s: `주의 이상 · 헛경보 ${dW['헛경보'] ?? '-'}일` },
+        { k: '한 달 일평균 rMAE', v: n3(mrow('mean').rMAE), s: '참고 전망' },
+      ]} />
+      <Sec title="최종 모델" sub="모든 모델은 기준일 15시에 알 수 있는 정보만 사용">
+        <Table rows={final} cols={[{ k: 'a', t: '예측', l: true }, { k: 'm', t: '최종 모델', l: true, w: true }, { k: 's', t: '2026 시험 성적', l: true, w: true }]} />
+      </Sec>
+      <Sec title="왜 육지 예측에서 출발하나">
+        <p>제주 SMP는 육지와 같은 가격인 시간이 2022년 31%에서 2026년 91%(3분기 99%)로 늘었습니다. 그래서 <b>육지 예측이 제주 가격의 대부분을 설명</b>하고, 제주 고유 정보(제주 수요·바람·햇빛)로 만든 보정은 오차를 0.08원(0.7%)만 더 줄였습니다. 보정은 4분의 1만 반영할 때 2025년 성적이 가장 좋았습니다.</p>
+        <p>제주는 2024년 4분기 ~ 2025년 2분기에 음수 가격이 많아 <b>범위 하한을 0원에서 자르지 않습니다</b>.</p>
+      </Sec>
+      <Sec title="일주일 예측 성적표" sub="표준 지표 (육지 성적표와 같은 정의)">
+        <Table rows={JM.filter((r) => r['예측'] === '일주일' && String(r['기간']).startsWith('2026'))} cols={METCOLS.map((c) => (c.k === '포함률' ? { ...c, cls: covC } : c))} />
+        <p className="muted">2025 하반기(선택 구간) 같은 표: 전체 MAE {n2(jm('일주일', '2025', '전체').MAE)}원 · 포함률 {pct(jm('일주일', '2025', '전체')['포함률'])}. 급락 시간(30원 미만)은 범위가 거의 담지 못합니다 — 급락 판별을 함께 보세요.</p>
+      </Sec>
+      <Sec title="다음 날 급락 판별" sub="급락 = 내일 11~15시 제주 최저 SMP 30원 미만">
+        <Table rows={dt} cols={[{ k: '구분', t: '구분', l: true }, { k: '일수', t: '일수' }, { k: '급락일', t: '급락일' }, { k: 'ROC-AUC', t: 'ROC-AUC', f: n3 }, { k: 'PR-AUC', t: 'PR-AUC', f: n3 },
+          { k: '적중', t: '적중' }, { k: '놓침', t: '놓침' }, { k: '헛경보', t: '헛경보' }]} />
+        <ul>
+          <li>문턱: {dc['문턱 규칙'] ?? '주의 = 2025 급락 90%를 잡는 값'} (주의 확률 {pct(T_WARN, 0)}, 강한 경보 {pct(T_STRONG, 0)}~).</li>
+          <li>2026 급락 54일 중 39일(72%)을 잡았고, 경보를 낸 날의 53%가 실제 급락이었습니다. 목표 재현율 90%에는 못 미칩니다.</li>
+          <li>제주 급락은 육지보다 3배 잦고(비율 13.6%), 평일 '제주만 급락'(바람·햇빛이 강하고 수요가 적은 날)을 잘 못 잡습니다. 급락일이 적어 모델 간 우열이 해마다 바뀝니다.</li>
+          <li>KNN은 예상 한낮 최저 가격을 내지 않아 확률·등급만 표시합니다.</li>
+        </ul>
+      </Sec>
+      <Sec title="한 달 예측 (참고 전망)" sub="2026 시험, 기준 = 제주 최근 같은 유형일 4일 평균">
+        <Table rows={mt} cols={[{ k: '지표', t: '지표', l: true, f: (v) => STAT_NAME[v as Stat] ?? v }, { k: 'MAE', t: 'MAE', f: n2 }, { k: '기준 MAE', t: '기준 MAE', f: n2 },
+          { k: 'rMAE', t: 'rMAE', f: n3 }, { k: '포함률', t: '포함률', f: (v) => pct(v), cls: covC }, { k: '평균폭', t: '평균 폭', f: (v) => fmt(v) }]} />
+        <p>한 달 뒤 제주 가격은 육지 한 달 예측에 최근 제주−육지 차이를 더해 냅니다. 저녁(18~22시)은 기준보다 나쁘고, 한낮 최저는 범위가 넓어 실용성이 낮습니다.</p>
+      </Sec>
+    </div>
+  )
+}
+
 export function Docs({ page, onPage }: { page: DocPage; onPage: (p: DocPage) => void }) {
+  if (REGION === '제주') return <JejuDocs />
   const P = PAGES[page]
   return (
     <div className="space-y-5">

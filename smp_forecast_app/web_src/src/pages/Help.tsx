@@ -1,4 +1,4 @@
-import { D, LEVEL } from '../data'
+import { D, LEVEL, REGION } from '../data'
 import { avg, fmt, lab } from '../fmt'
 import { Card, PageHeader } from '../components/ui'
 import type { Route } from '../App'
@@ -12,7 +12,7 @@ export function Help({ go }: { go: (r: Route) => void }) {
   ]
   return (
     <div className="space-y-5">
-      <PageHeader title="SMP 예측 웹앱" sub="육지 계통한계가격(SMP)을 기준일 15시에 예측하고, 실제 가격이 들어올 80% 범위를 함께 보여 줍니다" />
+      <PageHeader title="SMP 예측 웹앱" sub={`${REGION} 계통한계가격(SMP)을 기준일 15시에 예측하고, 실제 가격이 들어올 80% 범위를 함께 보여 줍니다 · 왼쪽 메뉴에서 육지/제주 전환`} />
       <div className="grid gap-3 md:grid-cols-3">
         {tiles.map((t) => (
           <button key={t.t} onClick={() => go(t.r)} className="card group p-5 text-left transition hover:border-brand/60 hover:shadow-md">
@@ -47,7 +47,7 @@ export function Help({ go }: { go: (r: Route) => void }) {
         </Card>
         <Card title="급락 판별이란?">
           <div className="prose-doc space-y-2">
-            <p>휴일 한낮에 태양광이 많고 수요가 적으면 SMP가 0원 근처로 떨어집니다. 내일 <b>11~15시 최저 SMP가 30원 미만</b>일지를 과제1 모델(Ridge + EBM + 랜덤포레스트)이 판별해 <b>낮음 · 주의 · 강한 경보</b>와 확률로 보여 줍니다.</p>
+            <p>휴일 한낮에 태양광이 많고 수요가 적으면 SMP가 0원 근처로 떨어집니다. 내일 <b>11~15시 최저 SMP가 30원 미만</b>일지를 과제1 모델(육지: Ridge + EBM + 랜덤포레스트, 제주: KNN 분류)이 판별해 <b>낮음 · 주의 · 강한 경보</b>와 확률로 보여 줍니다. 제주는 평일에도 바람·햇빛이 강하면 급락이 잦습니다.</p>
           </div>
         </Card>
         <Card title="어떻게 골랐나">

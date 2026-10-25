@@ -114,7 +114,7 @@ python -m smp_forecast_app.src.jz_final_metrics --score2026
 - TabPFN·Chronos는 `HF_HUB_OFFLINE=1`로 실행 (가중치는 이미 받아 둠). 한글 출력이 깨지면 `PYTHONIOENCODING=utf-8`.
 - `--score2026`은 **이미 한 번 실행했다.** 다시 실행해도 같은 숫자가 나와야 정상이며(결과 재현), 그 숫자를 보고 무언가를 바꾸면 안 된다.
 
-### 운영 함수 (`jz_ops.py`) — 과제2 채팅이 `ops.py`에 연결 (2026-10-25 현재 **아직 연결 안 됨**)
+### 운영 함수 (`jz_ops.py`) — 과제2 채팅이 `ops.py`에 연결함 (2026-10-25, [OPS.md](OPS.md) 제주 절)
 | 함수 | 반환 | 호출 순서·주의 |
 |---|---|---|
 | `weekly(bases)` | 시간별 `[base_date, H, date, hour, y, pred, lo, hi, offday]` | **육지 weekly 다음.** 육지 운영 기록 `ops/hourly_log.csv`의 같은 기준일 `pred`를 읽음. 범위용 제주 Chronos 분위수는 기준일마다 새로 계산. 기록 `jeju/ops/jwz_log.csv` |
@@ -390,9 +390,9 @@ python -m common.collect.kpx_jeju_sukub {3일 전 YYYYMMDD}
 ## 9. 남은 일·알려진 한계
 
 ### 과제2 채팅(운영·웹) 몫
-- [ ] `ops.py`에 제주 매일 수집 4줄(2.3절) 추가 — 5분 실적은 15:30 운영 전에.
-- [ ] `ops.py`에서 `jz_ops.weekly` → `drops` → `monthly` 호출 (각각 육지 weekly·monthly 다음), 일요일 `jz_ops.train()`.
-- [ ] `export_web.py`·웹에 육지/제주 전환. 제주 급락 배지는 `pred_min` 없이 확률·등급만. 한 달은 일평균·한낮 위주 + "참고 전망".
+- [x] `ops.py`에 제주 매일 수집 4줄(2.3절) 추가 — 5분 실적은 15:30 운영 안에서 예측 전에 수집 (2026-10-25)
+- [x] `ops.py`에서 `jz_ops.weekly` → `drops` → `monthly` 호출 (육지 다음), 일요일 `jz_ops.train()`. 10/22~10/24 기준일 산출 완료. 10/23 시험 기록은 `jeju/ops/jwz_log_test_20261023.csv`로 보관
+- [x] `export_web.py`·웹에 육지/제주 전환. 제주 급락 배지는 확률·등급만, 한 달은 "참고 전망", 제주 참고 문서 1쪽 (2026-10-25)
 
 ### 제주 쪽 한계 (발표·후속 연구용)
 - 일주일: 제주 고유 정보의 추가 효과가 작다(0.7%). 사실상 육지 예측의 품질이 제주 성적을 결정.

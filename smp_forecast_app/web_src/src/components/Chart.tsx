@@ -32,7 +32,9 @@ export function bandOption(o: {
   const lo = o.lo.map((v) => v ?? null), diff = o.hi.map((v, i) => (v != null && o.lo[i] != null ? (v as number) - (o.lo[i] as number) : null))
   const outPts = o.y.map((v, i) => (v != null && o.lo[i] != null && !inside(v, o.lo[i], o.hi[i]) ? [i, v] : null)).filter(Boolean)
   const vals = [...o.lo, ...o.hi, ...o.y, ...o.p].filter((v): v is number => v != null)
-  const ymin = Math.max(0, Math.floor((Math.min(...vals) - 8) / 10) * 10)
+  const vmin = Math.min(...vals)
+  // 제주는 음수 가격이 있어 0 아래도 그림 (그때는 눈금이 겹치지 않게 ECharts가 하한을 고름)
+  const ymin0 = vmin >= 0 ? Math.max(0, Math.floor((vmin - 8) / 10) * 10) : undefined
   return {
     animation: false,
     grid: { left: 44, right: 16, top: 16, bottom: o.zoom ? 62 : 30 },
@@ -51,7 +53,7 @@ export function bandOption(o: {
       axisLine: { lineStyle: { color: C.line } }, axisTick: { show: false },
       axisLabel: { color: C.mute, fontSize: 11, interval: 0, formatter: (_: string, i: number) => (o.xLabel ? o.xLabel(i) : _) },
     },
-    yAxis: { type: 'value', min: ymin, splitLine: { lineStyle: { color: C.line } }, axisLabel: { color: C.mute, fontSize: 11 }, name: '원', nameTextStyle: { color: C.mute, fontSize: 11, padding: [0, 24, 0, 0] } },
+    yAxis: { type: 'value', min: ymin0,splitLine: { lineStyle: { color: C.line } }, axisLabel: { color: C.mute, fontSize: 11 }, name: '원', nameTextStyle: { color: C.mute, fontSize: 11, padding: [0, 24, 0, 0] } },
     dataZoom: o.zoom ? [{ type: 'inside' }, { type: 'slider', height: 18, bottom: 8, borderColor: C.line, fillerColor: 'rgba(26,140,220,0.12)', handleSize: '80%', showDetail: false }] : [],
     series: [
       { name: 'lo', type: 'line', data: lo, stack: 'band', symbol: 'none', lineStyle: { opacity: 0 }, silent: true,

@@ -1,7 +1,8 @@
 """운영(매일 예측) — 작업 스케줄러가 호출. 웹앱 모델(2026-10-22 선택)을 그대로 쓴다.
 
   python -m smp_forecast_app.src.ops train    매주 일요일: 일주일 잔차 보정(LightGBM)·한 달 LSTM·GRU 재학습·저장
-  python -m smp_forecast_app.src.ops daily    매일 15:30: 수집 → 밀린 기준일까지 예측 → 기록 → 웹 → 푸시
+  python -m smp_forecast_app.src.ops daily    매일 15:30(+로그온·절전 해제·매시 재시도): 수집 → 밀린 기준일까지 예측(육지 → 제주) → 기록 → 웹 → 푸시
+                                              15:30 전에는 어제 기준일까지만 산출, 산출할 것이 없으면 바로 끝남
   python -m smp_forecast_app.src.ops actuals  매일 21:30: 공표 SMP 수집 → 웹 → 푸시
 
 모델 (선택 근거: docs/01_결과.md 10~11절, outputs/tables/WZ_choice.json·MZ_choice.json)
@@ -11,7 +12,9 @@
   내일 급락 경고: 과제1 최종 모델(Ridge+EBM+랜덤포레스트)을 매일 판단일까지의 자료로 학습해 계산 → 확률 보정(D_choice)
 판단 시각 규칙: 기준일 I의 예측은 I일 15시에 알 수 있는 값만 (I일 SMP는 I-1일 저녁 공표). 늦게 켜져도 같은 값,
   실제 산출 시각(run_at)을 기록. 밀린 기준일은 최대 14일까지 따라잡음.
+  제주: jz_ops.weekly·drops·monthly (모델·근거는 docs/JEJU.md). 육지 운영 기록을 읽으므로 육지 다음에 실행
 기록: data/processed/smp_forecast_app/ops/{hourly,daily,drop}_log.csv, run_log.txt
+      제주 data/processed/smp_forecast_app/jeju/ops/{jwz,jdaily,jdrop}_log.csv
 """
 import json
 import os
@@ -42,6 +45,9 @@ WZOO = DATA / "wzoo"
 TAB = ROOT / "smp_forecast_app" / "outputs" / "tables"
 PY = sys.executable
 MAX_CATCHUP = 14
+CUTOFF = (15, 30)   # 매일 예측 예약 시각. 이 시각 이후에만 오늘 기준일을 산출
+JDIR = DATA / "jeju"
+JOPS = JDIR / "ops"   # 제주 운영 기록 (jwz_log = 일주일, jdrop_log = 급락, jdaily_log = 한 달)
 CHRONOS = {"c2s": "autogluon/chronos-2-small", "c2": "amazon/chronos-2"}
 CTX = 2048
 
@@ -124,6 +130,12 @@ def train():
     torch.save({"states": states, "nf": Xf.shape[2], "trained_at": datetime.now().isoformat(timespec="minutes"),
                 "last_base": str(B[tr].max().date())}, MODELS / "mz_seq.pt")
     log(f"학습 완료 → {MODELS / 'mz_seq.pt'} (기준일 ~{B[tr].max().date()}, {time.time()-t0:.0f}s)")
+    try:
+        from smp_forecast_app.src import jz_ops
+        jz_ops.train()   # 제주 잔차 보정(H별) + 급락 고정 모델
+        log("제주 학습 완료")
+    except Exception:  # noqa: BLE001
+        log("제주 학습 실패:\n" + traceback.format_exc())
 
 
 # ---------------------------------------------------------------- 예측
@@ -304,11 +316,80 @@ def drops(bases, run_at):
         _append("drop_log.csv", pd.DataFrame(rows), ["date"])
 
 
+# ---------------------------------------------------------------- 제주 (제주 채팅이 만든 jz_ops 호출, 육지 산출 뒤)
+def collect_jeju(today):
+    run(["common.collect.kpx_jeju_sukub", (today - pd.Timedelta(days=3)).strftime("%Y%m%d")])   # 5분 실적: 판단일 14:25까지 필요
+    run(["common.collect.kma_regional_fcst", (today - pd.Timedelta(days=3)).strftime("%Y%m"), today.strftime("%Y%m"), "jeju"])
+    run(["common.collect.openmeteo_prevruns", (today - pd.Timedelta(days=5)).strftime("%Y-%m-%d"),
+         (today + pd.Timedelta(days=3)).strftime("%Y-%m-%d"), "jeju"])
+    run(["common.collect.openmeteo_prevruns", (today - pd.Timedelta(days=5)).strftime("%Y-%m-%d"),
+         (today + pd.Timedelta(days=8)).strftime("%Y-%m-%d"), "jeju_ext"])
+
+
+def _jread(name, **kw):
+    p = JOPS / name
+    return pd.read_csv(p, **kw) if p.exists() else pd.DataFrame()
+
+
+def _jappend(name, new, keys):
+    old = _jread(name)
+    out = pd.concat([old, new], ignore_index=True) if len(old) else new
+    JOPS.mkdir(parents=True, exist_ok=True)
+    out.drop_duplicates(keys, keep="last").to_csv(JOPS / name, index=False, encoding="utf-8-sig")
+
+
+def jeju_bases(today):
+    """제주 산출할 기준일: 제주 백테스트·운영 기록 다음 날부터, 육지 일주일이 산출된 기준일까지 (최대 14일)."""
+    done = pd.read_csv(JDIR / "JWZ_predictions_hourly.csv", usecols=["base_date"], parse_dates=["base_date"])["base_date"]
+    jl = _jread("jwz_log.csv", usecols=["base_date"], parse_dates=["base_date"])
+    last = max(done.max(), jl["base_date"].max()) if len(jl) else done.max()
+    land = set(_read("hourly_log.csv", usecols=["base_date"], parse_dates=["base_date"])["base_date"])
+    start = max(last + pd.Timedelta(days=1), today - pd.Timedelta(days=MAX_CATCHUP - 1))
+    return [d for d in pd.date_range(start, today) if d in land]
+
+
+def jeju(today, run_at):
+    from smp_forecast_app.src import jz_ops
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
+    bases = jeju_bases(today)
+    if not bases:
+        log("제주: 새 기준일 없음")
+        return
+    log(f"제주: 기준일 {bases[0].date()} ~ {bases[-1].date()} ({len(bases)}일) 산출")
+    steps = (("일주일", jz_ops.weekly, None, None),                       # jwz_log.csv는 jz_ops가 직접 기록
+             ("급락 경고", jz_ops.drops, "jdrop_log.csv", ["date"]),
+             ("한 달", jz_ops.monthly, "jdaily_log.csv", ["base_date", "H"]))
+    for name, fn, out, keys in steps:
+        try:
+            r = fn(bases)
+            if out and len(r):
+                r = r.assign(run_at=run_at)
+                for c in ("base_date", "date"):
+                    r[c] = pd.to_datetime(r[c]).dt.strftime("%Y-%m-%d")
+                _jappend(out, r, keys)
+            log(f"제주 {name} 완료 ({len(r)}행)")
+        except Exception:  # noqa: BLE001
+            log(f"제주 {name} 실패:\n" + traceback.format_exc())
+
+
+def last_due():
+    """지금 산출할 수 있는 마지막 기준일. 15:30 전에는 오늘 판단 자료(11시 단기예보 등)가 다 모이지 않았다고 보고 어제까지."""
+    now = datetime.now()
+    today = pd.Timestamp(now.date())
+    return today if (now.hour, now.minute) >= CUTOFF else today - pd.Timedelta(days=1)
+
+
 def daily():
+    # 예약 시각 외에 로그온·절전 해제 때도 호출되므로, 산출할 기준일이 없으면 수집 없이 바로 끝낸다
+    done = _read("hourly_log.csv", parse_dates=["base_date"])
+    due = last_due()
+    if len(done) and done["base_date"].max() >= due and not jeju_bases(due):
+        print(f"기준일 {due.date()}까지 육지·제주 모두 이미 산출됨 — 건너뜀", flush=True)
+        return
     t0 = time.time()
     run_at = datetime.now().strftime("%Y-%m-%d %H:%M")
     log("===== 매일 예측 시작 =====")
-    today = pd.Timestamp.today().normalize()
+    today = due
     run(["common.collect.smp_forecast", "--recent", "5"])
     run(["common.collect.kma_regional_fcst", (today - pd.Timedelta(days=3)).strftime("%Y%m"), today.strftime("%Y%m")])
     run(["common.collect.mid_fcst"])
@@ -316,6 +397,7 @@ def daily():
          (today + pd.Timedelta(days=1)).strftime("%Y-%m-%d")])   # D+1 일사·운량 (D-2 실행분, H=1 피처)
     run(["common.collect.kpx_weekly_outlook"])
     run(["common.collect.kpx_demand_fcst"])
+    collect_jeju(today)
     if today.day <= 10:
         run(["common.collect.epsis_fuel_cost", "202301"])
         run(["common.collect.epsis_capacity"])
@@ -339,6 +421,7 @@ def daily():
                 log(f"{name} 완료")
             except Exception:  # noqa: BLE001
                 log(f"{name} 실패:\n" + traceback.format_exc())
+    jeju(today, run_at)
     export_web.main()
     push(f"웹 데이터 갱신 {today:%Y-%m-%d} (예측)")
     log(f"===== 매일 예측 완료 ({time.time()-t0:.0f}s) =====")

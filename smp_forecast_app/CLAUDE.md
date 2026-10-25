@@ -40,6 +40,7 @@ smp_forecast_app/
 ├─ web_src/               웹앱 소스: React + TypeScript + Vite + Tailwind + ECharts + react-day-picker
 └─ web/                   빌드 결과 index.html 한 파일 + data/forecast_data.js — 서버 없이 파일로 열림
 ```
+- 웹은 육지·제주를 왼쪽 메뉴에서 전환 (`forecast_data.js` 최상위 = 육지, `jeju` 키 = 제주. 주소 `index.html?region=제주`로 바로 열 수 있음). 제주 모델·결과는 [docs/JEJU.md](docs/JEJU.md).
 - 웹 수정: `cd smp_forecast_app/web_src` → `npm install`(처음 한 번) → `npm run build` (→ `web/index.html`). 개발 미리보기 `npm run dev`.
 - 데이터만 바뀌면 빌드 불필요: `python -m smp_forecast_app.src.export_web`이 `web/data/forecast_data.js`만 다시 씀 (운영이 매일 자동).
 - 과제2 전용 정제 데이터는 `../data/processed/smp_forecast_app/`에 저장.

@@ -6,8 +6,10 @@
   이전 흐름 확인 : 달력에서 기간(최대 14일)을 골라 지나간 예측 vs 공표 SMP (다음 날·일주일 D+1~7·한 달 7·14·21·28일 전)
   참고 문서     : 개요·다음 날·일주일·한 달 — 모델, 비교 모델과 성능, 선택 이유, 사용 데이터, 표준 성적표 (docs)
   설명
+계통: 육지(최상위 키) + 제주(`jeju` 키, 같은 구조 + 제주 참고 문서 jdocs). 웹 왼쪽 메뉴에서 전환
 입력: WZ_predictions_hourly.csv(일주일, wz_ens) · MZ_predictions_daily.csv(한 달, mz_ens — 없으면 M_predictions_daily.csv)
       ops 운영 기록(있으면 같은 대상 덮어씀) · drop_badge.csv / ops drop_log.csv (급락 확률)
+      제주: jeju/JWZ_predictions_hourly.csv · JMZ_predictions_daily.csv · drop_badge_제주.csv + jeju/ops/{jwz,jdaily,jdrop}_log.csv
 실행: python -m smp_forecast_app.src.export_web
 """
 import json
@@ -18,11 +20,13 @@ from common.calendar import build_calendar
 from common.config import PROCESSED_DIR, ROOT
 from common.loaders import load_smp_actual
 from smp_forecast_app.src.features_daily import daily_stats
+from smp_forecast_app.src.jz_month import daily_stats as jz_daily_stats
 
 APP = ROOT / "smp_forecast_app"
 TAB = APP / "outputs" / "tables"
 DATA = PROCESSED_DIR / "smp_forecast_app"
 OPS = DATA / "ops"
+JDIR = DATA / "jeju"
 OUT = APP / "web" / "data" / "forecast_data.js"
 STATS = ["mean", "mid", "eve", "midmin"]
 PAST_SINCE = "2025-07-01"
@@ -47,19 +51,32 @@ def _table(name, cols=None):
     return json.loads(t.round(4).to_json(orient="records", force_ascii=False))
 
 
+def _table_at(p):
+    return json.loads(pd.read_csv(p).round(4).to_json(orient="records", force_ascii=False)) if p.exists() else []
+
+
 def _json(name):
     p = TAB / name
     return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
 
 
-def _ops(name, **kw):
-    p = OPS / name
+# 계통별 입력 (제주는 제주 채팅 결과 파일 + 제주 운영 기록, docs/JEJU.md 1절)
+SRC = {
+    "육지": {"hourly": DATA / "WZ_predictions_hourly.csv", "daily": DATA / "MZ_predictions_daily.csv", "drop": DATA / "drop_badge.csv",
+             "ops": OPS, "logs": ("hourly_log.csv", "daily_log.csv", "drop_log.csv")},
+    "제주": {"hourly": JDIR / "JWZ_predictions_hourly.csv", "daily": JDIR / "JMZ_predictions_daily.csv", "drop": JDIR / "drop_badge_제주.csv",
+             "ops": JDIR / "ops", "logs": ("jwz_log.csv", "jdaily_log.csv", "jdrop_log.csv")},
+}
+
+
+def _log(region, i, **kw):
+    p = SRC[region]["ops"] / SRC[region]["logs"][i]
     return pd.read_csv(p, **kw) if p.exists() else pd.DataFrame()
 
 
-def hourly_frame():
-    w = pd.read_csv(DATA / "WZ_predictions_hourly.csv", parse_dates=["base_date", "date"])[["base_date", "H", "date", "hour", "pred", "lo", "hi"]]
-    oh = _ops("hourly_log.csv", parse_dates=["base_date", "date"])
+def hourly_frame(region="육지"):
+    w = pd.read_csv(SRC[region]["hourly"], parse_dates=["base_date", "date"])[["base_date", "H", "date", "hour", "pred", "lo", "hi"]]
+    oh = _log(region, 0, parse_dates=["base_date", "date"])
     if len(oh):
         key = lambda x: x["base_date"].astype(str) + "_" + x["H"].astype(str)
         o = oh[["base_date", "H", "date", "hour", "pred", "lo", "hi"]]
@@ -67,25 +84,38 @@ def hourly_frame():
     return w
 
 
-def daily_frame():
-    p = DATA / "MZ_predictions_daily.csv"
+def daily_frame(region="육지"):
+    p = SRC[region]["daily"]
     m = pd.read_csv(p if p.exists() else DATA / "M_predictions_daily.csv", parse_dates=["base_date", "date"])
-    om = _ops("daily_log.csv", parse_dates=["base_date", "date"])
+    om = _log(region, 1, parse_dates=["base_date", "date"])
     if len(om):
         m = pd.concat([m[~m["base_date"].isin(om["base_date"])], om])
     return m
 
 
-def main():
-    act = load_smp_actual("육지")[["date", "hour", "smp"]].rename(columns={"smp": "y"})
-    last_pub = act["date"].max()
-    w = hourly_frame()
-    cal = build_calendar(w["date"].min() - pd.Timedelta(days=40), w["date"].max() + pd.Timedelta(days=40)).set_index("date")
-    actual = {d.strftime("%Y-%m-%d"): _h24(g, "y") for d, g in act[act["date"] >= PAST_SINCE].groupby("date")}
-    dayinfo = {d.strftime("%Y-%m-%d"): {"dt": r.day_type, "off": bool(r.is_offday)} for d, r in cal.iterrows()}
+def drop_meta(region, drop):
+    """급락 등급 문턱 확률·모델 이름·2026년 등급별 실제 급락 비율 (웹 눈금 막대용)."""
+    if region == "육지":
+        thr = _json("D_choice.json").get("등급 문턱 확률", {})
+        real = {r["구분"][3:]: {"rate": r["실제 급락 비율"], "k": int(r["급락일"]), "n": int(r["일수"])}
+                for r in _table("D1_drop_calibration.csv") if r["연도"] == 2026 and str(r["구분"]).startswith("등급 ")}
+        return {"warn": thr.get("주의(90.1원)"), "strong": thr.get("강한 경보(75.3원)"), "real": real,
+                "model": "과제1 모델(Ridge+EBM+랜덤포레스트)"}
+    thr = _json("JD_choice.json").get("등급 문턱 확률", {})
+    d = drop[drop["date"] >= "2026-01-01"].dropna(subset=["label"]) if "label" in drop else drop.iloc[:0]
+    real = {g: {"rate": round(float(x["label"].mean()), 4), "k": int(x["label"].sum()), "n": len(x)} for g, x in d.groupby("grade")}
+    return {"warn": thr.get("주의"), "strong": thr.get("강한 경보"), "real": real, "model": "과제1 제주 모델(KNN 분류: 과거 비슷한 날 25일)"}
 
-    drop = pd.read_csv(DATA / "drop_badge.csv") if (DATA / "drop_badge.csv").exists() else pd.DataFrame(columns=["date", "grade", "pred_min", "prob"])
-    od = _ops("drop_log.csv")
+
+def region_payload(region, dayinfo):
+    """한 계통의 일주일·한 달·이전 흐름·급락 데이터."""
+    act = load_smp_actual(region)[["date", "hour", "smp"]].rename(columns={"smp": "y"})
+    actual = {d.strftime("%Y-%m-%d"): _h24(g, "y") for d, g in act[act["date"] >= PAST_SINCE].groupby("date")}
+    w = hourly_frame(region)
+
+    p = SRC[region]["drop"]
+    drop = pd.read_csv(p) if p.exists() else pd.DataFrame(columns=["date", "grade", "pred_min", "prob"])
+    od = _log(region, 2)
     if len(od):
         drop = pd.concat([drop[~drop["date"].isin(od["date"])], od])
     drops = {r.date: {"grade": r.grade, "min": _n(r.pred_min), "prob": round(float(r.prob), 3)} for r in drop.itertuples()}
@@ -107,11 +137,11 @@ def main():
         past_h[int(H)] = {d.strftime("%Y-%m-%d"): [_h24(x, "pred"), _h24(x, "lo"), _h24(x, "hi")] for d, x in g.groupby("date")}
 
     # 한 달
-    m = daily_frame()
+    m = daily_frame(region)
     fullm = m[m["pred_mean"].notna()].groupby("base_date")["H"].nunique()   # 빈 백테스트 행(피처만 있는 최신 기준일) 제외
     mbase = fullm[fullm >= 28].index.max()
     mm = m[m["base_date"] == mbase].sort_values("H")
-    ds = daily_stats()
+    ds = daily_stats() if region == "육지" else jz_daily_stats(region)
     month = {"base": mbase.strftime("%Y-%m-%d"), "d": mm["date"].dt.strftime("%Y-%m-%d").tolist(),
              "dt": [dayinfo.get(x, {}).get("dt") for x in mm["date"].dt.strftime("%Y-%m-%d")]}
     for s in STATS:
@@ -124,6 +154,15 @@ def main():
         past_d[H] = {r.date.strftime("%Y-%m-%d"): {s: [_n(getattr(r, f"pred_{s}")), _n(getattr(r, f"lo_{s}")), _n(getattr(r, f"hi_{s}"))]
                                                    for s in STATS} for r in g.itertuples()}
     daily_act = {d.strftime("%Y-%m-%d"): {s: _n(r[s]) for s in STATS} for d, r in ds[ds.index >= PAST_SINCE].iterrows()}
+    return {"lastPublished": act["date"].max().strftime("%Y-%m-%d"), "week": week, "month": month, "dropMeta": drop_meta(region, drop),
+            "past": {"hourly": past_h, "actual": actual, "daily": past_d, "dailyActual": daily_act, "drop": drops}}
+
+
+def main():
+    w = hourly_frame()
+    cal = build_calendar(w["date"].min() - pd.Timedelta(days=40), w["date"].max() + pd.Timedelta(days=40)).set_index("date")
+    dayinfo = {d.strftime("%Y-%m-%d"): {"dt": r.day_type, "off": bool(r.is_offday)} for d, r in cal.iterrows()}
+    land = region_payload("육지", dayinfo)
 
     perf = {
         "week": {"models": _table("WZ1_models.csv"), "ens": _table("WZ2_ensembles_2025H2.csv"), "test": _table("WZ3_test2026.csv"),
@@ -134,19 +173,30 @@ def main():
     }
     t1 = ROOT / "drop_classifier" / "outputs" / "tables"
     docs = {"final": _json("F_final.json"), "metrics": _table("F1_final_metrics.csv"), "nextday": _table("F2_nextday_compare.csv"),
-            "dropTest": json.loads(pd.read_csv(t1 / "13_final_test2026_육지.csv").round(4).to_json(orient="records", force_ascii=False)),
+            "dropTest": _table_at(t1 / "13_final_test2026_육지.csv"),
             "dropZoo": json.loads(pd.read_csv(t1 / "17_zoo_cv2025_육지.csv").drop(columns=["초"], errors="ignore").head(15)
                                   .round(4).to_json(orient="records", force_ascii=False))}
+    try:
+        jeju = region_payload("제주", dayinfo)
+        jc = _json("JD_choice.json")
+        jeju["jdocs"] = {"metrics": _table("JF1_final_metrics.csv"), "weekTest": _table("JWZ3_test2026.csv"),
+                         "monthTest": _table("JMZ2_test2026.csv"), "dropTest": _table_at(t1 / "J3_test2026.csv"),
+                         "weekChoice": _json("JWZ_choice.json"), "monthChoice": _json("JMZ_choice.json"),
+                         "dropChoice": {k: v for k, v in jc.items() if k != "피처 목록"}, "dropFeatures": len(jc.get("피처 목록", []))}
+    except Exception as e:  # noqa: BLE001  제주가 실패해도 육지 화면은 내보냄
+        print(f"제주 내보내기 실패: {e!r}")
+        jeju = None
     ol = OPS / "run_log.txt"
     runs = [l for l in ol.read_text(encoding="utf-8").splitlines() if "매일 예측 완료" in l] if ol.exists() else []
-    data = {"generated": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"), "lastPublished": last_pub.strftime("%Y-%m-%d"),
-            "lastRun": runs[-1][1:17] if runs else None, "week": week, "month": month,
-            "past": {"hourly": past_h, "actual": actual, "daily": past_d, "dailyActual": daily_act, "drop": drops},
-            "dayinfo": {k: v for k, v in dayinfo.items() if k >= PAST_SINCE}, "perf": perf, "docs": docs}
+    data = {"generated": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"), "lastRun": runs[-1][1:17] if runs else None,
+            "dayinfo": {k: v for k, v in dayinfo.items() if k >= PAST_SINCE}, "perf": perf, "docs": docs, **land, "jeju": jeju}
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text("window.SMP_DATA = " + json.dumps(data, ensure_ascii=False, separators=(",", ":"), default=lambda o: None) + ";\n",
                    encoding="utf-8")
-    print(f"저장: {OUT} ({OUT.stat().st_size/1024:.0f} KB) — 일주일 기준일 {week['base']}, 한 달 기준일 {month['base']}, 최신 공표 {data['lastPublished']}")
+    msg = f"일주일 기준일 {land['week']['base']}, 한 달 기준일 {land['month']['base']}, 최신 공표 {land['lastPublished']}"
+    if jeju:
+        msg += f" / 제주 일주일 {jeju['week']['base']}, 한 달 {jeju['month']['base']}"
+    print(f"저장: {OUT} ({OUT.stat().st_size/1024:.0f} KB) — {msg}")
 
 
 if __name__ == "__main__":

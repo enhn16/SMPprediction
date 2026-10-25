@@ -12,11 +12,13 @@
 ## 한눈에
 | 작업 (작업 스케줄러) | 시각 | 하는 일 | 실행 파일 |
 |---|---|---|---|
-| `SMP_forecast_daily` | 매일 15:30 | 수집 → 밀린 기준일까지 예측(내일 시간별·주간·한 달·급락 확률) → 예측 기록 → 웹 데이터 → GitHub 푸시 | `smp_forecast_app/ops/ops_daily.bat` |
+| `SMP_forecast_daily` | 매일 15:30 (+23:30까지 매시, 로그온·절전 해제 3분 뒤) | 수집 → 밀린 기준일까지 예측(육지: 일주일·한 달·급락 확률 → 제주: 같은 셋) → 예측 기록 → 웹 데이터 → GitHub 푸시. 이미 산출됐으면 바로 끝남 | `smp_forecast_app/ops/ops_daily.bat` |
 | `SMP_forecast_actuals` | 매일 21:30 | 내일 공표 SMP 수집 → 웹 데이터 → 푸시 | `ops_actuals.bat` |
-| `SMP_forecast_train` | 매주 일요일 03:00 | 일주일 잔차 보정 + 한 달 예측용 LSTM·GRU 재학습·저장 | `ops_train.bat` |
+| `SMP_forecast_train` | 매주 일요일 03:00 | 일주일 잔차 보정 + 한 달 예측용 LSTM·GRU 재학습·저장, 제주 잔차 보정·급락 고정 모델 저장 | `ops_train.bat` |
 
-- 세 작업 모두 "예약 시간을 놓치면 가능한 빨리 실행" + "작업 실행 위해 절전 모드 해제" 설정. PC가 꺼져 있었으면 켜질 때 실행.
+- 세 작업 모두 "예약 시간을 놓치면 가능한 빨리 실행" + "작업 실행 위해 절전 모드 해제" + "실패 시 15분 간격 3회 재시도" 설정.
+- daily는 추가로 **로그온·절전 해제(Power-Troubleshooter 이벤트 1) 3분 뒤**와 **15:30 이후 23:30까지 매시**에도 실행된다 (2026-10-25). PC가 꺼져 있거나 절전이었으면 켜질 때 바로 따라잡고, 실행 도중 끊겨도 다음 시각에 다시 돈다. `ops daily`는 15:30 전이면 어제 기준일까지만 산출하고(오늘 판단 자료가 덜 모임), 육지·제주 모두 산출돼 있으면 수집 없이 바로 끝난다.
+- 2026-10-23 사례: PC 절전(10/23 09:38 ~ 10/24 16:13) 중에는 절전 해제 설정에도 깨어나지 않았다 → 켜진 뒤 따라잡기에 의존.
 - **늦게 실행돼도 예측 내용은 같다**: 피처가 대상일 기준 '판단일 15시까지 알 수 있는 값'으로 날짜에 고정 (내일 수요예측·SMP 미사용, 날씨는 발표 시각으로 선택). 산출 시각(run_at)을 기록해 웹에 "지연 산출" 표시.
 - 며칠 꺼져 있었으면 밀린 기준일(최대 14일)을 차례로 산출.
 
@@ -32,6 +34,14 @@
 | 시장참여 설비용량 (월) | `common.collect.epsis_capacity` | 매월 1~10일 |
 | 휴일 | `common.collect.holidays` | 12월에 다음 해 |
 | 전력수급예보 (내일 최대 예측수요) | `common.collect.kpx_demand_fcst` | 승인됨(2026-10-22). 내일 1건만 제공·과거 조회 불가 → 대상일·수집 시각으로 축적. 피처 미사용 |
+
+## 제주 (2026-10-25 연결, 모델·근거는 [JEJU.md](JEJU.md))
+| 단계 | 내용 |
+|---|---|
+| 수집 (daily) | `kpx_jeju_sukub {3일 전}`(5분 계통 실적, 하루 100회 한도) · `kma_regional_fcst … jeju` · `openmeteo_prevruns … jeju`(오늘+3일) · `… jeju_ext`(오늘+8일) |
+| 예측 (daily, 육지 다음) | `jz_ops.weekly`(육지 운영 기록 `hourly_log`의 같은 기준일 pred를 읽음) → `drops` → `monthly`(육지 `daily_log`를 읽음). 기준일 = 제주 백테스트·운영 기록 다음 날부터 육지가 산출된 날까지 |
+| 기록 | `data/processed/smp_forecast_app/jeju/ops/jwz_log.csv`(일주일, jz_ops가 씀) · `jdrop_log.csv`(급락) · `jdaily_log.csv`(한 달) |
+| 학습 (일요일) | `jz_ops.train()` — 잔차 보정 H별 + 급락 고정 모델(2024~2025 자료) |
 
 ## 파일
 - 모델: `data/processed/smp_forecast_app/models/mz_seq.pt` (한 달 LSTM·GRU), `wz_resid.pkl` (일주일 잔차 보정), Chronos는 Hugging Face 캐시

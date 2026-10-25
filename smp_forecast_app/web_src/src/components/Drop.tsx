@@ -1,12 +1,8 @@
-import { D, LEVEL, T_STRONG, T_WARN, type Drop } from '../data'
+import { D, DROP_REAL, LEVEL, T_STRONG, T_WARN, type Drop } from '../data'
 import { fmt } from '../fmt'
 
 const COLOR = { low: '#4fb386', warn: '#f2c200', strong: '#d83f4b' }
 const SOFT = { low: '#d6f0e3', warn: '#fdf1b0', strong: '#f8cdd1' }
-
-// 2026년 등급별 실제 급락 비율 (확률 보정 점검표)
-const real: Record<string, any> = {}
-;(D.perf.dropCal || []).filter((r) => r['연도'] === 2026 && String(r['구분']).startsWith('등급 ')).forEach((r) => { real[String(r['구분']).slice(3)] = r })
 
 export function DropChip({ d }: { d?: Drop }) {
   if (!d) return <span className="text-mute">-</span>
@@ -26,7 +22,7 @@ export function DropMeter({ d, date }: { d?: Drop; date?: string }) {
   const lv = LEVEL[d.grade] ?? LEVEL['없음']
   const p = Math.min(100, Math.max(0, (d.prob ?? 0) * 100))
   const w1 = T_WARN * 100, w2 = (T_STRONG - T_WARN) * 100, w3 = 100 - T_STRONG * 100
-  const rr = real[d.grade]
+  const rr = DROP_REAL[d.grade]
   return (
     <div className="card flex flex-col gap-5 p-5 md:flex-row md:items-center" style={{ borderLeft: `5px solid ${COLOR[lv.key]}` }}>
       <div className="min-w-[200px]">
@@ -53,8 +49,8 @@ export function DropMeter({ d, date }: { d?: Drop; date?: string }) {
           <span style={{ width: `${w3}%` }}>강한 경보 {Math.round(T_STRONG * 100)}%~</span>
         </div>
         <div className="mt-2 text-[12px] text-sub">
-          과제1 모델(Ridge+EBM+랜덤포레스트)의 예상 한낮 최저 <b className="text-ink">{fmt(d.min)}원</b>
-          {rr && <> · 2026년 이 등급 날 실제 급락 {Math.round(rr['실제 급락 비율'] * 100)}% ({rr['급락일']}/{rr['일수']}일)</>}
+          {D.dropMeta.model}{d.min != null && <>의 예상 한낮 최저 <b className="text-ink">{fmt(d.min)}원</b></>}
+          {rr && <> · 2026년 이 등급 날 실제 급락 {Math.round(rr.rate * 100)}% ({rr.k}/{rr.n}일)</>}
         </div>
       </div>
     </div>
