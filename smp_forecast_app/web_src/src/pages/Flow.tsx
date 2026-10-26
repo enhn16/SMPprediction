@@ -4,9 +4,10 @@ import { addDays, avg, fmt, inside, lab, md, pct, range, sgn } from '../fmt'
 import { bandOption, EChart } from '../components/Chart'
 import { DropChip } from '../components/Drop'
 import { RangePicker } from '../components/RangePicker'
-import { Card, Kpis, Legend, PageHeader, Select } from '../components/ui'
+import { Card, Kpis, Legend, PageHeader, Seg, Select } from '../components/ui'
 
-type Kind = 'drop' | 'wk' | 'mo'
+type Kind = 'wk' | 'drop' | 'mo'
+const KINDS: { v: Kind; t: string }[] = [{ v: 'wk', t: '가격 예측 (시간별)' }, { v: 'drop', t: '한낮 최저 · 급락 판별' }, { v: 'mo', t: '한 달 예측 (일별)' }]
 const WARN = 90.1, STRONG = 75.3 // 육지 예상 한낮 최저 문턱 (제주는 분류 점수라 확률·등급만)
 
 export function Flow() {
@@ -14,7 +15,7 @@ export function Flow() {
   const MIN = days[0], MAX = days[days.length - 1]
   const [from, setFrom] = useState(addDays(MAX, -13))
   const [to, setTo] = useState(MAX)
-  const [kind, setKind] = useState<Kind>('drop')
+  const [kind, setKind] = useState<Kind>('wk') // 기본 = 시간별 가격 예측과 80% 범위
   const [hW, setHW] = useState('1')
   const [hM, setHM] = useState('7')
   const [stat, setStat] = useState<Stat>('mean')
@@ -22,18 +23,17 @@ export function Flow() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="이전 흐름 확인" sub="지나간 날짜에 그때 냈던 예측과 공표 SMP를 비교합니다 · 최대 2주" />
+      <PageHeader title="이전 흐름 확인" sub="지나간 날짜에 그때 냈던 예측과 공표 SMP를 비교합니다 · 최대 2주"
+        right={<Seg value={kind} onChange={setKind} options={KINDS} />} />
       <div className="card flex flex-wrap items-center justify-between gap-4 p-4">
         <RangePicker from={from} to={to} min={MIN} max={MAX} onChange={(a, b) => { setFrom(a); setTo(b) }} />
         <div className="flex flex-wrap items-center gap-3">
-          <Select label="예측" value={kind} onChange={(v) => setKind(v as Kind)}
-            options={[{ v: 'drop', t: '다음 날 급락 판별' }, { v: 'wk', t: '일주일 예측 (시간별)' }, { v: 'mo', t: '한 달 예측 (일별)' }]} />
-          {kind === 'wk' && <Select value={hW} onChange={setHW} options={Object.keys(D.past.hourly).sort().map((h) => ({ v: h, t: h === '1' ? '하루 전 (D+1)' : `${h}일 전 (D+${h})` }))} />}
-          {kind === 'mo' && <Select value={hM} onChange={setHM} options={Object.keys(D.past.daily).sort((a, b) => +a - +b).map((h) => ({ v: h, t: `${h}일 전 예측` }))} />}
+          {kind === 'wk' && <Select label="예측 시점" value={hW} onChange={setHW} options={Object.keys(D.past.hourly).sort().map((h) => ({ v: h, t: h === '1' ? '하루 전 (D+1)' : `${h}일 전 (D+${h})` }))} />}
+          {kind === 'mo' && <Select label="예측 시점" value={hM} onChange={setHM} options={Object.keys(D.past.daily).sort((a, b) => +a - +b).map((h) => ({ v: h, t: `${h}일 전 예측` }))} />}
           {kind === 'mo' && <Select value={stat} onChange={(v) => setStat(v as Stat)} options={(Object.keys(STAT_NAME) as Stat[]).map((v) => ({ v, t: STAT_NAME[v] }))} />}
         </div>
       </div>
-      {kind === 'drop' ? <DropFlow dates={dates} /> : kind === 'wk' ? <HourlyFlow dates={dates} H={hW} /> : <DailyFlow dates={dates} H={hM} stat={stat} />}
+      {kind === 'drop' ? <DropFlow dates={dates} /> : kind === 'wk' ? <HourlyFlow key={dates.join()} dates={dates} H={hW} /> : <DailyFlow dates={dates} H={hM} stat={stat} />}
     </div>
   )
 }
@@ -119,35 +119,50 @@ function Summary({ s, unit }: { s: { p: any[]; lo: any[]; hi: any[]; y: any[] };
 
 function HourlyFlow({ dates, H }: { dates: string[]; H: string }) {
   const src = D.past.hourly[H] ?? {}
+  const [day, setDay] = useState<string | null>(null) // null = 기간 전체, 날짜 = 그날 24시간
+  const shown = day ? [day] : dates
   const s = { p: [] as any[], lo: [] as any[], hi: [] as any[], y: [] as any[] }
-  dates.forEach((d) => { const r = src[d], y = D.past.actual[d] ?? Array(24).fill(null); for (let i = 0; i < 24; i++) { s.p.push(r?.[0][i] ?? null); s.lo.push(r?.[1][i] ?? null); s.hi.push(r?.[2][i] ?? null); s.y.push(y[i]) } })
-  const opt = useMemo(() => bandOption({ x: dates.flatMap((d) => [...Array(24).keys()].map((i) => `${d} ${i}`)), ...s,
-    tip: (i) => `${lab(dates[Math.floor(i / 24)])} ${(i % 24) + 1}시`, xLabel: (i) => (i % 24 === 11 ? (dates.length > 7 ? md(dates[Math.floor(i / 24)]) : lab(dates[Math.floor(i / 24)])) : ''),
-    shade: dates.map((_, k) => [k * 24 + 10, k * 24 + 14] as [number, number]), dividers: dates.map((_, k) => k * 24).slice(1), zoom: true }), [dates.join(), H])
+  shown.forEach((d) => { const r = src[d], y = D.past.actual[d] ?? Array(24).fill(null); for (let i = 0; i < 24; i++) { s.p.push(r?.[0][i] ?? null); s.lo.push(r?.[1][i] ?? null); s.hi.push(r?.[2][i] ?? null); s.y.push(y[i]) } })
+  const all = { p: [] as any[], lo: [] as any[], hi: [] as any[], y: [] as any[] }
+  dates.forEach((d) => { const r = src[d], y = D.past.actual[d] ?? Array(24).fill(null); for (let i = 0; i < 24; i++) { all.p.push(r?.[0][i] ?? null); all.lo.push(r?.[1][i] ?? null); all.hi.push(r?.[2][i] ?? null); all.y.push(y[i]) } })
+  const opt = useMemo(() => day
+    ? bandOption({ x: [...Array(24).keys()].map((i) => `${i + 1}시`), ...s, tip: (i) => `${lab(day)} ${i + 1}시`,
+      xLabel: (i) => (i % 2 === 0 ? `${i + 1}시` : ''), shade: [[10, 14]], symbols: true })
+    : bandOption({ x: dates.flatMap((d) => [...Array(24).keys()].map((i) => `${d} ${i}`)), ...s,
+      tip: (i) => `${lab(dates[Math.floor(i / 24)])} ${(i % 24) + 1}시`, xLabel: (i) => (i % 24 === 11 ? (dates.length > 7 ? md(dates[Math.floor(i / 24)]) : lab(dates[Math.floor(i / 24)])) : ''),
+      shade: dates.map((_, k) => [k * 24 + 10, k * 24 + 14] as [number, number]), dividers: dates.map((_, k) => k * 24).slice(1), zoom: dates.length > 7 }), [dates.join(), H, day])
+  const when = H === '1' ? '하루 전' : H + '일 전'
   return (
     <>
-      <Summary s={s} unit="시간" />
-      <Card title={`시간별 · ${H === '1' ? '하루 전' : H + '일 전'} 예측 vs 공표`} sub="회색 = 한낮 11~15시 · 아래 막대로 확대"
-        right={<Legend items={[{ t: '80% 범위', c: 'band' }, { t: '당시 예측', c: 'pred' }, { t: '공표 SMP', c: 'act' }, { t: '범위 밖', c: 'out' }]} />}>
+      <Summary s={all} unit="시간" />
+      <Card title={day ? `${lab(day)} 시간별 · ${when} 예측 vs 공표` : `시간별 · ${when} 예측 vs 공표`}
+        sub={day ? '회색 = 한낮 11~15시' : '회색 = 한낮 11~15시 · 아래 표에서 날짜를 누르면 그날만 크게'}
+        right={<div className="flex flex-wrap items-center gap-3">
+          <Legend items={[{ t: '80% 범위 (당시)', c: 'band' }, { t: '당시 예측', c: 'pred' }, { t: '공표 SMP', c: 'act' }, { t: '범위 밖', c: 'out' }]} />
+          {day && <button onClick={() => setDay(null)} className="text-[13px] font-semibold text-brand-dark">← 기간 전체</button>}
+        </div>}>
         <EChart option={opt} height={380} />
       </Card>
-      <Card title="날짜별">
+      <Card title="날짜별" sub="범위 = 그날 24시간 하한·상한 평균 · 포함률 = 공표 SMP가 범위 안에 든 시간 비율">
         <div className="overflow-x-auto rounded-lg border border-line">
           <table className="tbl">
-            <thead><tr><th className="l">날짜</th><th>예측 일평균</th><th>공표 일평균</th><th>MAE</th><th>포함률</th><th>예측 한낮 최저</th><th>공표 한낮 최저</th></tr></thead>
+            <thead><tr><th className="l">날짜</th><th>예측 일평균</th><th>80% 범위</th><th>공표 일평균</th><th>MAE</th><th>포함률</th><th>하한 아래 / 상한 위</th></tr></thead>
             <tbody>
               {dates.map((d) => {
                 const r = src[d], y = D.past.actual[d] ?? []
                 const ok = r ? [...Array(24).keys()].filter((i) => r[0][i] != null && y[i] != null) : []
                 const cov = ok.length ? ok.filter((i) => inside(y[i], r![1][i], r![2][i])).length / ok.length : null
-                const mins = (a: any[]) => { const v = [10, 11, 12, 13, 14].map((i) => a[i]).filter((x) => x != null); return v.length ? Math.min(...v) : null }
+                const below = ok.filter((i) => r![1][i] != null && (y[i] as number) < (r![1][i] as number)).length
+                const above = ok.filter((i) => r![2][i] != null && (y[i] as number) > (r![2][i] as number)).length
                 return (
-                  <tr key={d}>
+                  <tr key={d} onClick={() => r && setDay(d)} className={`${r ? 'cursor-pointer hover:bg-brand-soft/60' : ''} ${day === d ? 'sel' : ''}`}>
                     <td className={`l ${info(d).off ? 'text-bad' : ''}`}>{lab(d)} {info(d).dt !== '평일' ? info(d).dt : ''}</td>
-                    <td>{fmt(r ? avg(r[0]) : null)}</td><td className="font-semibold">{fmt(avg(y))}</td>
+                    <td className="font-semibold text-brand-dark">{fmt(r ? avg(r[0]) : null)}</td>
+                    <td className="text-sub">{r ? `${fmt(avg(r[1]))} ~ ${fmt(avg(r[2]))}` : '-'}</td>
+                    <td className="font-semibold">{fmt(avg(y))}</td>
                     <td>{fmt(ok.length ? avg(ok.map((i) => Math.abs((y[i] as number) - (r![0][i] as number)))) : null)}</td>
                     <td className={cov == null ? '' : cov >= 0.75 ? 'text-good' : 'text-bad font-semibold'}>{pct(cov)}</td>
-                    <td>{fmt(r ? mins(r[0]) : null)}</td><td className="font-semibold">{fmt(mins(y))}</td>
+                    <td className="text-sub">{ok.length ? `${below} / ${above}시간` : '-'}</td>
                   </tr>
                 )
               })}
@@ -155,7 +170,7 @@ function HourlyFlow({ dates, H }: { dates: string[]; H: string }) {
           </table>
         </div>
       </Card>
-      <p className="muted">{H}일 전 예측 = 대상일보다 {H}일 앞선 기준일 15시에 일주일 모델({REGION === '제주' ? '육지 일주일 예측 + 제주 잔차 보정' : 'Chronos-2 small + 잔차 보정'})이 낸 예측입니다.</p>
+      <p className="muted">{when} 예측 = 대상일보다 {H}일 앞선 기준일 15시에 일주일 모델({REGION === '제주' ? '육지 일주일 예측 + 제주 잔차 보정' : 'Chronos-2 small + 잔차 보정'})이 낸 예측과 80% 범위입니다. 한낮 최저 가격과 급락 판별은 '한낮 최저 · 급락 판별' 탭에서 봅니다.</p>
     </>
   )
 }
