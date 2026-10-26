@@ -109,6 +109,22 @@ def drop_meta(region, drop):
     return {"warn": thr.get("주의"), "strong": thr.get("강한 경보"), "real": real, "model": "과제1 제주 모델(KNN 분류: 과거 비슷한 날 25일)"}
 
 
+def jeju_drop_cal():
+    """제주 급락 확률 점검표 (육지 D1_drop_calibration.csv와 같은 열): 연도 × 등급·확률 구간, 2025 = 표본 밖, 2026 = 시험."""
+    d = pd.read_csv(SRC["제주"]["drop"]).dropna(subset=["label"])
+    d["연도"] = d["date"].str[:4].astype(int)
+    rows = []
+    for y, g in d.groupby("연도"):
+        parts = [(f"등급 {k}", g[g["grade"] == k]) for k in ("강한 경보", "주의", "없음")]
+        bins = [(0, .05, "0%~5%"), (.05, .2, "5%~20%"), (.2, .5, "20%~50%"), (.5, 1.01, "50%~100%")]
+        parts += [(f"확률 {t}", g[(g["prob"] >= a) & (g["prob"] < b)]) for a, b, t in bins]
+        for k, x in parts:
+            if len(x):
+                rows.append({"연도": int(y), "구분": k, "일수": len(x), "평균 확률": round(float(x["prob"].mean()), 4),
+                             "실제 급락 비율": round(float(x["label"].mean()), 4), "급락일": int(x["label"].sum())})
+    return rows
+
+
 def region_payload(region, dayinfo):
     """한 계통의 일주일·한 달·이전 흐름·급락 데이터."""
     act = load_smp_actual(region)[["date", "hour", "smp"]].rename(columns={"smp": "y"})
@@ -184,7 +200,13 @@ def main():
         jeju["jdocs"] = {"metrics": _table("JF1_final_metrics.csv"), "weekTest": _table("JWZ3_test2026.csv"),
                          "monthTest": _table("JMZ2_test2026.csv"), "dropTest": _table_at(t1 / "J3_test2026.csv"),
                          "weekChoice": _json("JWZ_choice.json"), "monthChoice": _json("JMZ_choice.json"),
-                         "dropChoice": {k: v for k, v in jc.items() if k != "피처 목록"}, "dropFeatures": len(jc.get("피처 목록", []))}
+                         "dropChoice": {k: v for k, v in jc.items() if k != "피처 목록"}, "dropFeatures": len(jc.get("피처 목록", [])),
+                         # 비교 후보 (육지 참고 문서와 같은 꼴로 보여 주기 위함)
+                         "weekModels": _table("JWZ1_models.csv", ["모델", "2025 상반기", "2025 하반기", "2025 전체"] + [f"하반기 D+{h}" for h in range(1, 8)])[:20],
+                         "weekEns": _table("JWZ2_ensembles_2025H2.csv", ["앙상블", "구성 수", "2025 하반기", "구성"])[:12],
+                         "monthCompare": _table("JMZ1_compare_2025H2.csv"),
+                         "dropZoo": _table_at(t1 / "J8_zoo_stability_2025.csv")[:12],
+                         "dropCal": jeju_drop_cal()}
     except Exception as e:  # noqa: BLE001  제주가 실패해도 육지 화면은 내보냄
         print(f"제주 내보내기 실패: {e!r}")
         jeju = None

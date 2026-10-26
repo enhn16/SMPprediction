@@ -22,6 +22,9 @@ function parse(): { r: Route; doc: DocPage } {
   return { r, doc: DOC_PAGES.includes(b as DocPage) ? (b as DocPage) : 'ov' }
 }
 
+// 제주를 보고 있을 때 한눈에 구분되도록 로고·계통 이름을 주황으로
+const JEJU_ORANGE = '#f07c1e', JEJU_ORANGE_SOFT = '#ffb36b'
+
 function Icon({ d }: { d: string }) {
   return <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
 }
@@ -82,10 +85,11 @@ export default function App() {
     <nav className="flex h-full flex-col">
       <div className="px-5 pb-5 pt-6">
         <div className="flex items-center gap-2.5">
-          <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand text-[13px] font-extrabold text-white">SMP</span>
+          <span className={`grid h-9 w-9 place-items-center rounded-lg text-[13px] font-extrabold text-white ${region === '제주' ? '' : 'bg-brand'}`}
+            style={region === '제주' ? { background: JEJU_ORANGE } : undefined}>SMP</span>
           <div>
             <div className="text-[16px] font-extrabold leading-tight text-white">SMP 예측</div>
-            <div className="text-[11.5px] text-[#9fc7e6]">{region} 계통한계가격</div>
+            <div className="text-[11.5px]" style={{ color: region === '제주' ? JEJU_ORANGE_SOFT : '#9fc7e6' }}>{region} 계통한계가격</div>
           </div>
         </div>
         {HAS_JEJU && (
@@ -128,7 +132,7 @@ export default function App() {
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-[232px] bg-brand-ink lg:block">{side}</aside>
       {/* 모바일 상단 바 */}
       <header className="sticky top-0 z-20 flex h-14 items-center justify-between bg-brand-ink px-4 lg:hidden">
-        <span className="text-[16px] font-extrabold text-white">SMP 예측 <span className="text-[13px] font-semibold text-[#9fc7e6]">· {region}</span></span>
+        <span className="text-[16px] font-extrabold text-white">SMP 예측 <span className="text-[13px] font-semibold" style={{ color: region === '제주' ? JEJU_ORANGE_SOFT : '#9fc7e6' }}>· {region}</span></span>
         <button onClick={() => setMenu(!menu)} className="rounded-lg p-2 text-white hover:bg-white/10" aria-label="메뉴">
           <Icon d={menu ? 'M6 6l12 12M18 6L6 18' : 'M4 7h16M4 12h16M4 17h16'} />
         </button>
