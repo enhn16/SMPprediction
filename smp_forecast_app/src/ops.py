@@ -372,6 +372,12 @@ def jeju(today, run_at):
             log(f"제주 {name} 실패:\n" + traceback.format_exc())
 
 
+def collect_accum():
+    """매일 쌓아야 사라지지 않는 자료 (아직 피처 미사용, 새 시험 구간에서 검토용). daily·actuals(21:30·23:50) 모두 호출."""
+    run(["common.collect.kma_vilage_fcst", "3"])   # 단기예보 11·14시 발표분 — API가 최근 3일만 제공
+    run(["common.collect.kpx_sukub"])              # 육지 5분 수급 — API가 오늘분만 제공 (23:50 실행이 하루 끝까지 받음)
+
+
 def last_due():
     """지금 산출할 수 있는 마지막 기준일. 15:30 전에는 오늘 판단 자료(11시 단기예보 등)가 다 모이지 않았다고 보고 어제까지."""
     now = datetime.now()
@@ -397,6 +403,7 @@ def daily():
          (today + pd.Timedelta(days=1)).strftime("%Y-%m-%d")])   # D+1 일사·운량 (D-2 실행분, H=1 피처)
     run(["common.collect.kpx_weekly_outlook"])
     run(["common.collect.kpx_demand_fcst"])
+    collect_accum()
     collect_jeju(today)
     if today.day <= 10:
         run(["common.collect.epsis_fuel_cost", "202301"])
@@ -430,6 +437,8 @@ def daily():
 def actuals():
     log("===== 공표 SMP 반영 =====")
     run(["common.collect.smp_forecast", "--recent", "3"])
+    collect_accum()
+    run(["common.collect.kpx_pv_region"], timeout=1800)   # 지역별 태양광 (약 7주 늦게 갱신, 새 날짜만)
     export_web.main()
     push(f"웹 데이터 갱신 {pd.Timestamp.today():%Y-%m-%d} (공표 SMP)")
 

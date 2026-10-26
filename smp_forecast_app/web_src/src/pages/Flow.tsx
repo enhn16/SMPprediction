@@ -7,7 +7,7 @@ import { RangePicker } from '../components/RangePicker'
 import { Card, CsvButton, Kpis, Legend, PageHeader, Seg, Select } from '../components/ui'
 
 type Kind = 'wk' | 'drop' | 'mo'
-const KINDS: { v: Kind; t: string }[] = [{ v: 'wk', t: '가격 예측 (시간별)' }, { v: 'drop', t: '한낮 최저 · 급락 판별' }, { v: 'mo', t: '한 달 예측 (일별)' }]
+const KINDS: { v: Kind; t: string }[] = [{ v: 'wk', t: '가격 예측 (시간별)' }, { v: 'drop', t: '한낮 최저 · 급락 경보' }, { v: 'mo', t: '한 달 예측 (일별)' }]
 const WARN = 90.1, STRONG = 75.3 // 육지 예상 한낮 최저 문턱 (제주는 분류 점수라 확률·등급만)
 
 export function Flow() {
@@ -60,7 +60,7 @@ function DropFlow({ dates }: { dates: string[] }) {
       ...(!hasMin ? [] : [{ name: '예상 한낮 최저', type: 'line', data: rows.map((r) => r.dr?.min ?? null), symbol: 'circle', symbolSize: 7, lineStyle: { color: '#1a8cdc', width: 2.2 }, itemStyle: { color: '#1a8cdc' },
         markLine: { silent: true, symbol: 'none', data: [
           { yAxis: WARN, lineStyle: { color: '#d8a800', type: 'dashed' }, label: { formatter: '주의 90.1', color: '#8a6a00', fontSize: 11, position: 'insideEndTop' } },
-          { yAxis: STRONG, lineStyle: { color: '#d83f4b', type: 'dashed' }, label: { formatter: '강한 경보 75.3', color: '#d83f4b', fontSize: 11, position: 'insideEndTop' } },
+          { yAxis: STRONG, lineStyle: { color: '#d83f4b', type: 'dashed' }, label: { formatter: '경보 75.3', color: '#d83f4b', fontSize: 11, position: 'insideEndTop' } },
           { yAxis: 30, lineStyle: { color: '#1f2933', type: 'dotted' }, label: { formatter: '급락 30원', color: '#1f2933', fontSize: 11, position: 'insideEndTop' } }] } }]),
       { name: '공표 한낮 최저', type: 'line', data: rows.map((r) => r.y), symbol: 'rect', symbolSize: 7, lineStyle: { color: '#1f2933', width: 1.4 },
         itemStyle: { color: (p: any) => (rows[p.dataIndex].y != null && rows[p.dataIndex].y! < 30 ? '#d83f4b' : '#1f2933') },
@@ -101,7 +101,7 @@ function DropFlow({ dates }: { dates: string[] }) {
           </table>
         </div>
       </Card>
-      <p className="muted">다음 날 급락 판별 = 대상일 하루 전 15시에 {D.dropMeta.model}이 낸 판정. 급락 = 11~15시 최저 SMP 30원 미만. 결과는 주의 이상을 경보로 봅니다.</p>
+      <p className="muted">내일 급락 경보 = 대상일 하루 전 15시에 {D.dropMeta.model}이 낸 판정. 급락 = 11~15시 최저 SMP 30원 미만. 결과는 주의 이상을 경보로 봅니다.</p>
     </>
   )
 }
@@ -179,7 +179,7 @@ function HourlyFlow({ dates, H }: { dates: string[]; H: string }) {
         </div>
       </Card>
       <CoverageTrend H={H} end={dates[dates.length - 1]} />
-      <p className="muted">{when} 예측 = 대상일보다 {H}일 앞선 기준일 15시에 일주일 모델({REGION === '제주' ? '육지 일주일 예측 + 제주 잔차 보정' : 'Chronos-2 small + 잔차 보정'})이 낸 예측과 80% 범위입니다. 한낮 최저 가격과 급락 판별은 '한낮 최저 · 급락 판별' 탭에서 봅니다.</p>
+      <p className="muted">{when} 예측 = 대상일보다 {H}일 앞선 기준일 15시에 일주일 모델({REGION === '제주' ? '육지 일주일 예측 + 제주 잔차 보정' : 'Chronos-2 small + 잔차 보정'})이 낸 예측과 80% 범위입니다. 한낮 최저 가격과 급락 경보은 '한낮 최저 · 급락 경보' 탭에서 봅니다.</p>
     </>
   )
 }

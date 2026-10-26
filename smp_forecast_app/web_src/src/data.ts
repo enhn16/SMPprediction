@@ -71,6 +71,6 @@ export const STAT_NAME: Record<Stat, string> = { mean: '일평균', mid: '한낮
 
 // 급락 등급 (과제1): 확률 문턱은 계통별 dropMeta (육지 D_choice.json, 제주 JD_choice.json의 등급 문턱 확률)
 export const LEVEL: Record<string, { key: 'low' | 'warn' | 'strong'; name: string }> = {
-  '없음': { key: 'low', name: '낮음' }, '주의': { key: 'warn', name: '주의' }, '강한 경보': { key: 'strong', name: '강한 경보' },
+  '없음': { key: 'low', name: '낮음' }, '주의': { key: 'warn', name: '주의' }, '강한 경보': { key: 'strong', name: '경보' },
 }
 export const info = (d: string) => D.dayinfo[d] ?? { dt: '', off: false }

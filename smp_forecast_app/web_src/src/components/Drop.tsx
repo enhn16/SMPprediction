@@ -16,7 +16,7 @@ export function DropChip({ d }: { d?: Drop }) {
   )
 }
 
-/** 다음 날 급락 판별: 확률 + 낮음·주의·강한 경보 눈금 막대 */
+/** 내일 급락 경보: 확률 + 낮음·주의·경보 눈금 막대 */
 export function DropMeter({ d, date }: { d?: Drop; date?: string }) {
   if (!d) return null
   const lv = LEVEL[d.grade] ?? LEVEL['없음']
@@ -26,8 +26,8 @@ export function DropMeter({ d, date }: { d?: Drop; date?: string }) {
   return (
     <div className="card flex flex-col gap-5 p-5 md:flex-row md:items-center" style={{ borderLeft: `5px solid ${COLOR[lv.key]}` }}>
       <div className="min-w-[200px]">
-        <div className="text-[12.5px] font-semibold text-sub">다음 날 급락 판별{date ? ` · ${date}` : ''}</div>
-        {/* 등급이 먼저: 표시 확률은 높은 구간에서 과신(육지 강한 경보 평균 70% → 2026 실제 37%)이라 보조로 */}
+        <div className="text-[12.5px] font-semibold text-sub">내일 급락 경보{date ? ` · ${date}` : ''}</div>
+        {/* 등급이 먼저: 표시 확률은 높은 구간에서 과신(육지 경보 평균 70% → 2026 실제 37%)이라 보조로 */}
         <div className="mt-1 flex items-baseline gap-2">
           <span className="text-[34px] font-extrabold leading-none" style={{ color: lv.key === 'low' ? '#1d6b49' : lv.key === 'warn' ? '#8a6a00' : COLOR.strong }}>{lv.name}</span>
           <span className="text-[13px] font-semibold text-sub">모델 추정 {d.prob == null ? '-' : Math.round(d.prob * 100) + '%'}</span>
@@ -46,7 +46,7 @@ export function DropMeter({ d, date }: { d?: Drop; date?: string }) {
         <div className="mt-1.5 flex text-[11.5px] font-medium text-sub">
           <span style={{ width: `${w1}%` }}>낮음</span>
           <span style={{ width: `${w2}%` }}>주의 {Math.round(T_WARN * 100)}%~</span>
-          <span style={{ width: `${w3}%` }}>강한 경보 {Math.round(T_STRONG * 100)}%~</span>
+          <span style={{ width: `${w3}%` }}>경보 {Math.round(T_STRONG * 100)}%~</span>
         </div>
         <div className="mt-2 text-[12px] text-sub">
           {D.dropMeta.model}{d.min != null && <>의 예상 한낮 최저 <b className="text-ink">{fmt(d.min)}원</b></>}

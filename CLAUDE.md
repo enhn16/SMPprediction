@@ -9,7 +9,9 @@
 | 과제1 | [drop_classifier/](drop_classifier/) | 휴일 한낮 SMP 급락 사전 감지 (육지 필수, 제주 선택). Python 분석 모델 | 완료 (육지 10/21·제주 10/25 확정, 2026 1회 채점) |
 | 과제2 | [smp_forecast_app/](smp_forecast_app/) | 시간별 예측값에 예측 범위(상·하한) 산출 → **웹앱으로 구현** (교과목 교수 요구) | 진행 중 (1차 결과·웹앱 완료) |
 | 과제3 | 과제2 웹앱에 결합 | 예측 근거를 쉬운 문장으로 자동 생성 (SHAP 기여도 → 문장) | 예정 |
+| 과제4 | [surge_classifier/](surge_classifier/) | SMP 급등 사전 감지 (직전 28일 일 최고 중앙값 × 1.25). 과제1과 같은 3단계 | 진행 중 (① 레이블 완료) |
 
+- **역할 분담·2단 운용(15시 1차·21시 2차)·산출 형식**: [smp_forecast_app/docs/ROLES.md](smp_forecast_app/docs/ROLES.md) (2026-10-26, 현업 10/21 답변 반영). 총괄·웹·운영 = 과제2 채팅.
 - 배경: 숙명여대 산학 프로젝트 P4 — 한국중부발전(주) 동반성장부가 2026. 7월부터 운영 중인 SMP 예측 프로그램(LightGBM)의 부족한 점 3가지 개선. 참고자료: [read/](read/) (협의자료 v1.4, 학생질의 답변, 과제2 Q&A, PRD, 공표경계 판정서 등)
 - **일정**: 10/21·10/28 줌 미팅(13:30) → **11/4 대면(성공 기준 확정)** → **11/11 공동 발표(팀별 5분)**
 - 순서: 과제1 완료 → 과제2 웹앱 → 과제3를 웹앱에 결합. 과제2 폴더는 과제1이 끝난 뒤 사용자 확인을 받고 만든다.
@@ -35,7 +37,8 @@ SMP/
 │     └─ drop_classifier/  과제1 전용: 일별 레이블, 피처 테이블
 ├─ common/                 공용 코드: 데이터 로딩, 휴일·요일유형, 한글 폰트, 시드
 ├─ drop_classifier/        과제1 (CLAUDE.md, docs/, notebooks/, src/, outputs/)
-└─ smp_forecast_app/       과제2 (CLAUDE.md, docs/, src/, outputs/, web/)
+├─ smp_forecast_app/       과제2 (CLAUDE.md, docs/, src/, outputs/, web/)
+└─ surge_classifier/       과제4 급등 (CLAUDE.md, docs/, src/, outputs/)
 ```
 
 - 두 과제 이상에서 쓰는 코드는 `common/`, 한 과제에서만 쓰는 코드는 그 과제의 `src/`에 둔다.
