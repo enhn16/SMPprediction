@@ -1,5 +1,7 @@
 @echo off
-rem SMP ê³¼ì œ2 ìš´ì˜ ìž‘ì—… (daily). ìž‘ì—… ìŠ¤ì¼€ì¤„ëŸ¬ê°€ ìˆ¨ê¹€ ì°½ìœ¼ë¡œ ì‹¤í–‰. ê¸°ë¡: data\processed\smp_forecast_app\ops\run_log.txt
+rem SMP °úÁ¦2 ¿î¿µ ÀÛ¾÷ (daily). ÀÛ¾÷ ½ºÄÉÁÙ·¯°¡ run_hidden.vbs·Î Ã¢ ¾øÀÌ ½ÇÇà. ±â·Ï: data\processed\smp_forecast_app\ops\run_log.txt
+rem ÀÌ ÆÄÀÏÀº cp949(ANSI)¡¤CRLF·Î ÀúÀåÇÑ´Ù. UTF-8·Î ÀúÀåÇÏ¸é cmd°¡ ÇÑ±Û ÁÖ¼®À» Àß¸ø ÀÐ¾î ¸í·ÉÀ¸·Î ½ÇÇàÇÑ´Ù
 cd /d C:\developer\SMP
 set PYTHONIOENCODING=utf-8
 C:\Python312\python.exe -W ignore -m smp_forecast_app.src.ops daily >> data\processed\smp_forecast_app\ops\console_daily.log 2>&1
+exit /b %ERRORLEVEL%

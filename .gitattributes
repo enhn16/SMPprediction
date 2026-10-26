@@ -1,0 +1,3 @@
+# 운영 bat·vbs는 cp949·CRLF 그대로 (docs/OPS.md)
+*.bat -text
+*.vbs -text
