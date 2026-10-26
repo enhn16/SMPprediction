@@ -49,7 +49,7 @@
 - 잔차 보정 학습 이력: Chronos 과거 예측 `wzoo_hist/c2s.csv.gz`(2023~2024) + 백테스트 `wzoo/c2s.csv.gz` + 운영 기록의 `c2s` 열
 - 예측 기록: `data/processed/smp_forecast_app/ops/hourly_log.csv`(H=1~7; pred = 보정 후, c2s = Chronos 원래 중앙값, rhat = 잔차 예측), `daily_log.csv`(7~34일), `drop_log.csv`(급락 확률)
 - 실행 기록: `data/processed/smp_forecast_app/ops/run_log.txt`, `console_*.log`
-- 웹 데이터: `smp_forecast_app/web/data/forecast_data.js` (백테스트 결과 + 운영 기록, 같은 대상은 운영 기록 우선)
+- 웹 데이터: `smp_forecast_app/web/data/forecast_data.js`(육지·공통) + `forecast_data_jeju.js`(제주) (백테스트 결과 + 운영 기록, 같은 대상은 운영 기록 우선). 푸시는 두 파일만 커밋
 
 ## 범위 계산
 - 오차 이력 = 백테스트 표본 밖 예측(wzoo c2s·c2, MZ_predictions_daily) + 운영 기록. 방법은 2025로 고른 것 그대로 (WZ_choice·MZ_choice).

@@ -11,7 +11,7 @@ export function DropChip({ d }: { d?: Drop }) {
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-semibold"
       style={{ background: SOFT[lv.key], color: lv.key === 'strong' ? '#9b1c27' : lv.key === 'warn' ? '#6b5300' : '#1d6b49' }}>
       <i className="inline-block h-2 w-2 rounded-full" style={{ background: COLOR[lv.key] }} />
-      {d.prob == null ? '-' : Math.round(d.prob * 100) + '%'} · {lv.name}
+      {lv.name} · {d.prob == null ? '-' : Math.round(d.prob * 100) + '%'}
     </span>
   )
 }
@@ -27,13 +27,13 @@ export function DropMeter({ d, date }: { d?: Drop; date?: string }) {
     <div className="card flex flex-col gap-5 p-5 md:flex-row md:items-center" style={{ borderLeft: `5px solid ${COLOR[lv.key]}` }}>
       <div className="min-w-[200px]">
         <div className="text-[12.5px] font-semibold text-sub">다음 날 급락 판별{date ? ` · ${date}` : ''}</div>
+        {/* 등급이 먼저: 표시 확률은 높은 구간에서 과신(육지 강한 경보 평균 70% → 2026 실제 37%)이라 보조로 */}
         <div className="mt-1 flex items-baseline gap-2">
-          <span className="text-[38px] font-extrabold leading-none tabular-nums" style={{ color: lv.key === 'low' ? '#005082' : lv.key === 'warn' ? '#8a6a00' : COLOR.strong }}>
-            {d.prob == null ? '-' : Math.round(d.prob * 100)}<span className="text-[20px]">%</span>
-          </span>
-          <span className="rounded-full px-3 py-1 text-[13px] font-bold" style={{ background: SOFT[lv.key], color: lv.key === 'strong' ? '#9b1c27' : lv.key === 'warn' ? '#6b5300' : '#1d6b49' }}>{lv.name}</span>
+          <span className="text-[34px] font-extrabold leading-none" style={{ color: lv.key === 'low' ? '#1d6b49' : lv.key === 'warn' ? '#8a6a00' : COLOR.strong }}>{lv.name}</span>
+          <span className="text-[13px] font-semibold text-sub">모델 추정 {d.prob == null ? '-' : Math.round(d.prob * 100) + '%'}</span>
         </div>
-        <div className="mt-1 text-[12px] text-mute">한낮(11~15시) 최저 SMP가 30원 미만일 확률</div>
+        <div className="mt-1 text-[12px] text-mute">내일 한낮(11~15시) 최저 SMP 30원 미만 여부</div>
+        {rr && <div className="mt-2 text-[13px] font-semibold text-ink">2026년 '{lv.name}' 날 실제 급락 {Math.round(rr.rate * 100)}% <span className="font-normal text-mute">({rr.k}/{rr.n}일)</span></div>}
       </div>
       <div className="min-w-0 flex-1">
         <div className="relative mt-3 flex h-3.5 overflow-visible rounded-full">
@@ -50,7 +50,7 @@ export function DropMeter({ d, date }: { d?: Drop; date?: string }) {
         </div>
         <div className="mt-2 text-[12px] text-sub">
           {D.dropMeta.model}{d.min != null && <>의 예상 한낮 최저 <b className="text-ink">{fmt(d.min)}원</b></>}
-          {rr && <> · 2026년 이 등급 날 실제 급락 {Math.round(rr.rate * 100)}% ({rr.k}/{rr.n}일)</>}
+          {' · 막대는 모델 추정 확률과 등급 문턱'}
         </div>
       </div>
     </div>

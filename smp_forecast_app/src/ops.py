@@ -436,16 +436,17 @@ def actuals():
 
 def push(msg):
     """웹 데이터 파일만 커밋·푸시. 실패해도 예측은 로컬에 남음."""
-    f = "smp_forecast_app/web/data/forecast_data.js"
+    f = ["smp_forecast_app/web/data/forecast_data.js", "smp_forecast_app/web/data/forecast_data_jeju.js"]
     if os.environ.get("SMP_NO_PUSH"):   # 수동 시험용
         log("푸시 건너뜀 (SMP_NO_PUSH)")
         return
     try:
-        subprocess.run(["git", "add", f], cwd=ROOT, check=True, capture_output=True)
-        if subprocess.run(["git", "diff", "--cached", "--quiet", "--", f], cwd=ROOT).returncode == 0:
+        f = [x for x in f if (ROOT / x).exists()]
+        subprocess.run(["git", "add", *f], cwd=ROOT, check=True, capture_output=True)
+        if subprocess.run(["git", "diff", "--cached", "--quiet", "--", *f], cwd=ROOT).returncode == 0:
             log("푸시: 변경 없음")
             return
-        subprocess.run(["git", "commit", "-m", msg, "--", f], cwd=ROOT, check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", msg, "--", *f], cwd=ROOT, check=True, capture_output=True)
         r = subprocess.run(["git", "push"], cwd=ROOT, capture_output=True, text=True, timeout=180)
         log(f"푸시: {'성공' if r.returncode == 0 else '실패 ' + r.stderr.strip()[-200:]}")
     except Exception as e:  # noqa: BLE001

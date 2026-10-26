@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { D, HAS_JEJU, REGION, setRegion, type Region } from './data'
-import { lab } from './fmt'
+import { D, HAS_JEJU, REGION, loadJeju, setRegion, type Region } from './data'
+import { dayDiff, lab, toIso } from './fmt'
 import { Week } from './pages/Week'
 import { Month } from './pages/Month'
 import { Flow } from './pages/Flow'
@@ -33,14 +33,43 @@ function savedRegion(): Region {
   try { return localStorage.getItem('smp-region') === '제주' ? '제주' : '육지' } catch { return '육지' }
 }
 
+/** 지금 있어야 할 마지막 기준일: 매일 15:30 예측 (여유 15분) 전이면 어제 */
+function dueBase() {
+  const now = new Date()
+  const d = new Date(now)
+  if (now.getHours() * 60 + now.getMinutes() < 15 * 60 + 45) d.setDate(d.getDate() - 1)
+  return toIso(d)
+}
+
+/** 예측이 늦어지면 맨 위에 경고 (운영 PC가 꺼져 있던 경우 등) */
+function StaleBanner() {
+  const due = dueBase(), base = D.week.base
+  const late = dayDiff(base, due)
+  if (late <= 0) return null
+  return (
+    <div className="mb-5 rounded-lg border border-[#f2c200] bg-[#fdf6d8] px-4 py-3 text-[13.5px] text-[#6b5300]">
+      <b>예측이 {late}일 늦어지고 있습니다.</b> 마지막 기준일 {lab(base)}, 지금쯤 있어야 할 기준일 {lab(due)}.
+      운영 PC가 켜지면 밀린 날을 자동으로 따라잡습니다 (마지막 산출 {D.lastRun ?? '-'}).
+    </div>
+  )
+}
+
 export default function App() {
   const [st, setSt] = useState(parse)
-  const [region, setReg] = useState<Region>(() => { const r = savedRegion(); setRegion(r); return REGION })
-  const pick = (r: Region) => {
+  const [region, setReg] = useState<Region>('육지')
+  const [loading, setLoading] = useState(false)
+  const pick = async (r: Region) => {
+    if (r === '제주') {
+      setLoading(true)
+      const ok = await loadJeju() // 제주 데이터는 처음 고를 때 읽음
+      setLoading(false)
+      if (!ok) { alert('제주 데이터 파일(data/forecast_data_jeju.js)을 읽지 못했습니다.'); return }
+    }
     setRegion(r)
     setReg(REGION)
     try { localStorage.setItem('smp-region', REGION) } catch { /* 저장 못 해도 동작 */ }
   }
+  useEffect(() => { if (savedRegion() === '제주' && HAS_JEJU) pick('제주') }, [])
   const [menu, setMenu] = useState(false)
   useEffect(() => {
     const h = () => { setSt(parse()); window.scrollTo(0, 0) }
@@ -62,8 +91,9 @@ export default function App() {
         {HAS_JEJU && (
           <div className="mt-4 grid grid-cols-2 gap-1 rounded-lg bg-white/10 p-1" role="group" aria-label="계통 선택">
             {(['육지', '제주'] as Region[]).map((r) => (
-              <button key={r} onClick={() => { pick(r); setMenu(false) }} aria-pressed={region === r}
-                className={`rounded-md py-1.5 text-[13px] font-bold transition ${region === r ? 'bg-white text-brand-dark shadow-sm' : 'text-[#d5e6f3] hover:bg-white/10'}`}>{r}</button>
+              <button key={r} onClick={() => { pick(r); setMenu(false) }} aria-pressed={region === r} disabled={loading}
+                className={`rounded-md py-1.5 text-[13px] font-bold transition ${region === r ? 'bg-white text-brand-dark shadow-sm' : 'text-[#d5e6f3] hover:bg-white/10'}`}>
+                {r === '제주' && loading ? '읽는 중…' : r}</button>
             ))}
           </div>
         )}
@@ -111,6 +141,7 @@ export default function App() {
       )}
       <main className="px-4 py-6 lg:ml-[232px] lg:px-8 lg:py-8">
         <div key={region} className="mx-auto max-w-[1240px]">
+          {st.r !== 'docs' && <StaleBanner />}
           {st.r === 'week' && <Week />}
           {st.r === 'month' && <Month />}
           {st.r === 'flow' && <Flow />}

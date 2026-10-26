@@ -1,9 +1,34 @@
 import { useMemo, useState } from 'react'
 import { D, REGION } from '../data'
-import { avg, fmt, lab } from '../fmt'
+import { avg, fmt, inside, lab, md, pct } from '../fmt'
 import { bandOption, EChart } from '../components/Chart'
 import { DropMeter } from '../components/Drop'
 import { Card, Legend, PageHeader, Seg } from '../components/ui'
+
+/** 최근 7일(공표가 있는 날) 하루 전 예측 성적 — 지금 예측을 얼마나 믿을지 가늠 */
+function RecentScore() {
+  const src = D.past.hourly['1'] ?? {}
+  const ds = Object.keys(src).filter((d) => (D.past.actual[d] ?? []).some((v) => v != null)).sort().slice(-7)
+  if (!ds.length) return null
+  const e: number[] = [], inn: boolean[] = [], lo: boolean[] = []
+  ds.forEach((d) => {
+    const [p, l, h] = src[d], y = D.past.actual[d]
+    y.forEach((v, i) => {
+      if (v == null || p[i] == null || l[i] == null || h[i] == null) return
+      e.push(Math.abs(v - (p[i] as number))); inn.push(inside(v, l[i], h[i])); lo.push(v < (l[i] as number))
+    })
+  })
+  const cov = inn.filter(Boolean).length / inn.length, below = lo.filter(Boolean).length / lo.length
+  return (
+    <div className="card flex flex-wrap items-center gap-x-6 gap-y-1 px-5 py-3 text-[13px] text-sub">
+      <b className="text-ink">최근 성적</b>
+      <span>{md(ds[0])} ~ {md(ds[ds.length - 1])} ({ds.length}일) 하루 전 예측</span>
+      <span>평균 오차 <b className="text-brand-dark">{fmt(avg(e))}원</b></span>
+      <span>80% 범위 포함률 <b className={cov >= 0.75 && cov <= 0.85 ? 'text-good' : 'text-bad'}>{pct(cov)}</b> <span className="text-mute">(목표 75~85%)</span></span>
+      <span>하한 아래 {pct(below)} · 상한 위 {pct(1 - cov - below)}</span>
+    </div>
+  )
+}
 
 export function Week() {
   const W = D.week, days = W.days
@@ -28,6 +53,7 @@ export function Week() {
       <PageHeader title="일주일 예측" sub={<>{lab(days[0].date)} ~ {lab(days[days.length - 1].date)} 시간별 SMP · 기준일 {W.base} 15시 판단 · 80% 범위</>}
         right={<Seg value={view === 'all' ? 'all' : 'day'} onChange={(v) => setView(v === 'all' ? 'all' : 0)} options={[{ v: 'all', t: '7일 전체' }, { v: 'day', t: '날짜별' }]} />} />
       <DropMeter d={W.drop} date={lab(days[0].date)} />
+      <RecentScore />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
         {days.map((d, i) => {
           const mn = Math.min(...[10, 11, 12, 13, 14].map((j) => d.p[j] ?? Infinity))

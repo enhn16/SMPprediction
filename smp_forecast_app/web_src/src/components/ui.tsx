@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { Row } from '../data'
+import { downloadCsv } from '../fmt'
 
 export function PageHeader({ title, sub, right }: { title: string; sub?: ReactNode; right?: ReactNode }) {
   return (
@@ -71,8 +72,17 @@ export function Select({ value, onChange, options, label }: { value: string; onC
 }
 
 export type Col = { k: string; t: string; l?: boolean; w?: boolean; f?: (v: any, r: Row) => ReactNode; cls?: (r: Row) => string }
-export function Table({ rows, cols, sel }: { rows: Row[]; cols: Col[]; sel?: (r: Row) => boolean }) {
+/** CSV 내려받기 버튼 (작게, 카드·표 오른쪽 위) */
+export function CsvButton({ onClick }: { onClick: () => void }) {
   return (
+    <button onClick={onClick} className="inline-flex items-center gap-1 rounded-md border border-line bg-white px-2.5 py-1 text-[12px] font-semibold text-sub hover:border-brand/60 hover:text-brand-dark">
+      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>CSV
+    </button>
+  )
+}
+
+export function Table({ rows, cols, sel, csv }: { rows: Row[]; cols: Col[]; sel?: (r: Row) => boolean; csv?: string }) {
+  const table = (
     <div className="overflow-x-auto rounded-lg border border-line">
       <table className="tbl">
         <thead><tr>{cols.map((c) => <th key={c.k} className={`${c.l ? 'l' : ''} ${c.w ? 'w' : ''}`}>{c.t}</th>)}</tr></thead>
@@ -86,6 +96,10 @@ export function Table({ rows, cols, sel }: { rows: Row[]; cols: Col[]; sel?: (r:
       </table>
     </div>
   )
+  if (!csv) return table
+  // CSV는 표시 형식이 아닌 원래 값으로
+  const save = () => downloadCsv(csv, cols.map((c) => c.t), rows.map((r) => cols.map((c) => r[c.k])))
+  return <div className="space-y-1.5"><div className="flex justify-end"><CsvButton onClick={save} /></div>{table}</div>
 }
 
 export function Pill({ children, tone = 'brand' }: { children: ReactNode; tone?: 'brand' | 'gray' | 'red' }) {

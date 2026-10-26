@@ -6,7 +6,8 @@
   이전 흐름 확인 : 달력에서 기간(최대 14일)을 골라 지나간 예측 vs 공표 SMP (다음 날·일주일 D+1~7·한 달 7·14·21·28일 전)
   참고 문서     : 개요·다음 날·일주일·한 달 — 모델, 비교 모델과 성능, 선택 이유, 사용 데이터, 표준 성적표 (docs)
   설명
-계통: 육지(최상위 키) + 제주(`jeju` 키, 같은 구조 + 제주 참고 문서 jdocs). 웹 왼쪽 메뉴에서 전환
+계통: 육지 = forecast_data.js(window.SMP_DATA), 제주 = forecast_data_jeju.js(window.SMP_JEJU, 같은 구조 + 제주 참고 문서 jdocs).
+      웹은 제주를 고를 때만 제주 파일을 읽음 (왼쪽 메뉴 전환)
 입력: WZ_predictions_hourly.csv(일주일, wz_ens) · MZ_predictions_daily.csv(한 달, mz_ens — 없으면 M_predictions_daily.csv)
       ops 운영 기록(있으면 같은 대상 덮어씀) · drop_badge.csv / ops drop_log.csv (급락 확률)
       제주: jeju/JWZ_predictions_hourly.csv · JMZ_predictions_daily.csv · drop_badge_제주.csv + jeju/ops/{jwz,jdaily,jdrop}_log.csv
@@ -28,6 +29,7 @@ DATA = PROCESSED_DIR / "smp_forecast_app"
 OPS = DATA / "ops"
 JDIR = DATA / "jeju"
 OUT = APP / "web" / "data" / "forecast_data.js"
+OUT_J = APP / "web" / "data" / "forecast_data_jeju.js"   # 제주는 따로 (웹이 제주를 고를 때만 읽음)
 STATS = ["mean", "mid", "eve", "midmin"]
 PAST_SINCE = "2025-07-01"
 DAILY_H = [7, 14, 21, 28]
@@ -189,14 +191,17 @@ def main():
     ol = OPS / "run_log.txt"
     runs = [l for l in ol.read_text(encoding="utf-8").splitlines() if "매일 예측 완료" in l] if ol.exists() else []
     data = {"generated": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"), "lastRun": runs[-1][1:17] if runs else None,
-            "dayinfo": {k: v for k, v in dayinfo.items() if k >= PAST_SINCE}, "perf": perf, "docs": docs, **land, "jeju": jeju}
+            "dayinfo": {k: v for k, v in dayinfo.items() if k >= PAST_SINCE}, "perf": perf, "docs": docs, **land, "hasJeju": jeju is not None}
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text("window.SMP_DATA = " + json.dumps(data, ensure_ascii=False, separators=(",", ":"), default=lambda o: None) + ";\n",
-                   encoding="utf-8")
+    dump = lambda o: json.dumps(o, ensure_ascii=False, separators=(",", ":"), default=lambda x: None)
+    OUT.write_text("window.SMP_DATA = " + dump(data) + ";\n", encoding="utf-8")
+    if jeju:
+        OUT_J.write_text("window.SMP_JEJU = " + dump(jeju) + ";\n", encoding="utf-8")
     msg = f"일주일 기준일 {land['week']['base']}, 한 달 기준일 {land['month']['base']}, 최신 공표 {land['lastPublished']}"
     if jeju:
         msg += f" / 제주 일주일 {jeju['week']['base']}, 한 달 {jeju['month']['base']}"
-    print(f"저장: {OUT} ({OUT.stat().st_size/1024:.0f} KB) — {msg}")
+    kb = OUT.stat().st_size / 1024, (OUT_J.stat().st_size / 1024 if OUT_J.exists() else 0)
+    print(f"저장: {OUT} ({kb[0]:.0f} KB) + 제주 {OUT_J.name} ({kb[1]:.0f} KB) — {msg}")
 
 
 if __name__ == "__main__":

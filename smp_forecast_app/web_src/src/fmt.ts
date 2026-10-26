@@ -26,3 +26,17 @@ export const range = (a: string, b: string) => {
   for (let d = a; d <= b; d = addDays(d, 1)) out.push(d)
   return out
 }
+
+/** 표를 CSV로 내려받기 (엑셀에서 한글이 깨지지 않게 BOM 포함) */
+export function downloadCsv(name: string, header: string[], rows: unknown[][]) {
+  const cell = (v: unknown) => {
+    const s = v == null || (typeof v === 'number' && !isFinite(v)) ? '' : String(v)
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  const text = '﻿' + [header, ...rows].map((r) => r.map(cell).join(',')).join('\r\n')
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }))
+  a.download = name.endsWith('.csv') ? name : name + '.csv'
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+}
