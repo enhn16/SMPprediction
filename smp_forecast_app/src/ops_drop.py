@@ -30,7 +30,8 @@ def predict_min(train: pd.DataFrame, target: pd.DataFrame) -> np.ndarray:
 MID = [11, 12, 13, 14, 15]
 
 
-def drop_features() -> pd.DataFrame:
+def drop_features(start: str = "2024-01-01") -> pd.DataFrame:
+    """start: 남길 첫 날짜 (기본 2024-01-01 = 기존 동작, 팀 규칙 predict()는 2023-01-01)."""
     s = load_smp_actual("육지")
     w = s.pivot_table(index="date", columns="hour", values="smp")
     last = w.index.max()
@@ -80,11 +81,50 @@ def drop_features() -> pd.DataFrame:
     df = pd.merge_asof(df.sort_values("date"), cap[["usable_from", "cap_solar"]], left_on="date", right_on="usable_from")
     df["cap_solar_gw"] = df["cap_solar"] / 1000
     df["min_smp_11_15"], df["label"] = mn.values, lab.values
-    return df[df["date"] >= "2024-01-01"][["date"] + COLS + ["min_smp_11_15", "label"]].reset_index(drop=True)
+    return df[df["date"] >= start][["date"] + COLS + ["min_smp_11_15", "label"]].reset_index(drop=True)
 
 
 def grade_of(pred_min):
     return np.where(pred_min <= STRONG, "강한 경보", np.where(pred_min <= WARN, "주의", "없음"))
+
+
+# ---------------------------------------------------------------- 팀 규칙 1차(15시) 급락 경보 (R1, ROLES.md 4.1)
+TEAM_START = "2023-01-01"
+
+
+def predict(bases, expanding: bool = False, dfe: pd.DataFrame | None = None) -> pd.DataFrame:
+    """기준일(base_date) 15시 판단 → 다음 날 급락 경보. 열: base_date, date, grade(없음/주의/경보), prob, score(예상 한낮 최저 원).
+
+    모델·문턱·확률식 = drop_classifier/outputs/tables/drop_choice_육지.json (team_final.py).
+    학습: 기본 = 대상일 전년도 말까지 고정 (2026 대상 → 2023~2025, 2025 대상 → 2023~2024, 백테스트와 같음).
+          expanding=True면 2023-01-01 ~ 기준일까지 확정된 날 전부 (매일 재학습).
+    같은 학습 구간끼리 한 번만 학습. 피처가 없는 날(내일 행 미생성)은 빠진다.
+    """
+    from drop_classifier.src.zoo import BASES
+    ch = _json.loads((_ROOT / "drop_classifier" / "outputs" / "tables" / "drop_choice_육지.json").read_text(encoding="utf-8"))
+    warn, strong = ch["문턱"]["주의"], ch["문턱"]["경보"]
+    a, b = ch["확률식"]["a"], ch["확률식"]["b"]
+    if dfe is None:
+        dfe = drop_features(TEAM_START)
+    have = set(dfe["date"])
+    jobs = {}
+    for I in pd.to_datetime(pd.Series(bases)).drop_duplicates():
+        d1 = I + pd.Timedelta(days=1)
+        if d1 not in have:
+            continue
+        end = I if expanding else min(I, pd.Timestamp(f"{d1.year - 1}-12-31"))
+        jobs.setdefault(end, []).append((I, d1))
+    rows = []
+    for end, pairs in jobs.items():
+        tr = dfe[dfe["label"].notna() & dfe["date"].between(TEAM_START, end)]
+        te = dfe[dfe["date"].isin([d for _, d in pairs])].set_index("date")
+        pm = pd.Series(-np.mean([BASES[m](tr, te.reset_index()) for m in MEMBERS], axis=0), index=te.index)
+        for I, d1 in pairs:
+            p = float(pm[d1])
+            rows.append({"base_date": I.strftime("%Y-%m-%d"), "date": d1.strftime("%Y-%m-%d"),
+                         "grade": "경보" if p <= strong else "주의" if p <= warn else "없음",
+                         "prob": round(1 / (1 + np.exp(-(a * -p + b))), 4), "score": round(p, 1)})
+    return pd.DataFrame(rows, columns=["base_date", "date", "grade", "prob", "score"])
 
 
 def main():

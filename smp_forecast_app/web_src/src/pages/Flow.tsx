@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { D, LEVEL, REGION, STAT_NAME, info, type Stat } from '../data'
+import { D, LEVEL, REGION, STAT_NAME, dropTarget, info, type Stat } from '../data'
 import { addDays, avg, downloadCsv, fmt, inside, lab, md, pct, range, sgn } from '../fmt'
 import { bandOption, EChart } from '../components/Chart'
 import { DropChip } from '../components/Drop'
@@ -8,7 +8,6 @@ import { Card, CsvButton, Kpis, Legend, PageHeader, Seg, Select } from '../compo
 
 type Kind = 'wk' | 'drop' | 'mo'
 const KINDS: { v: Kind; t: string }[] = [{ v: 'wk', t: '가격 예측 (시간별)' }, { v: 'drop', t: '한낮 최저 · 급락 경보' }, { v: 'mo', t: '한 달 예측 (일별)' }]
-const WARN = 90.1, STRONG = 75.3 // 육지 예상 한낮 최저 문턱 (제주는 분류 점수라 확률·등급만)
 
 export function Flow() {
   const days = Object.keys(D.past.actual).sort()
@@ -40,10 +39,12 @@ export function Flow() {
 
 function DropFlow({ dates }: { dates: string[] }) {
   const hasMin = REGION === '육지' // 제주 급락 모델은 분류(KNN)라 예상 한낮 최저가 없음
+  const WARN = D.dropMeta.lines?.['주의'] ?? 89.8, STRONG = D.dropMeta.lines?.['경보'] ?? 66.7 // 육지 예상 한낮 최저 문턱 (drop_choice_육지.json)
   const rows = dates.map((d) => {
-    const dr = D.past.drop[d], y = D.past.dailyActual[d]?.midmin ?? null
+    const on = dropTarget(d)   // 평일은 판정 대상 아님 (팀 규칙: 급락은 휴일·주말만)
+    const dr = on ? D.past.drop[d] : undefined, y = D.past.dailyActual[d]?.midmin ?? null
     const alarm = dr ? dr.grade !== '없음' : null, drop = y != null ? y < 30 : null
-    const res = alarm == null || drop == null ? '-' : alarm && drop ? '적중' : !alarm && drop ? '놓침' : alarm ? '헛경보' : '정상'
+    const res = !on ? '평일' : alarm == null || drop == null ? '-' : alarm && drop ? '적중' : !alarm && drop ? '놓침' : alarm ? '헛경보' : '정상'
     return { d, dr, y, res }
   })
   const opt = useMemo(() => ({
@@ -56,18 +57,18 @@ function DropFlow({ dates }: { dates: string[] }) {
       { type: 'value', min: 0, max: 100, name: '확률 %', nameTextStyle: { color: '#8a97a4', fontSize: 11 }, splitLine: { show: false }, axisLabel: { color: '#8a97a4', fontSize: 11 } }],
     series: [
       { name: '급락 확률', type: 'bar', yAxisIndex: 1, barWidth: '45%', data: rows.map((r) => ({ value: r.dr?.prob != null ? +(r.dr.prob * 100).toFixed(1) : null,
-        itemStyle: { color: r.dr?.grade === '강한 경보' ? 'rgba(216,63,75,0.35)' : r.dr?.grade === '주의' ? 'rgba(242,194,0,0.45)' : 'rgba(79,179,134,0.3)', borderRadius: [4, 4, 0, 0] } })) },
+        itemStyle: { color: (r.dr?.grade === '강한 경보' || r.dr?.grade === '경보') ? 'rgba(216,63,75,0.35)' : r.dr?.grade === '주의' ? 'rgba(242,194,0,0.45)' : 'rgba(79,179,134,0.3)', borderRadius: [4, 4, 0, 0] } })) },
       ...(!hasMin ? [] : [{ name: '예상 한낮 최저', type: 'line', data: rows.map((r) => r.dr?.min ?? null), symbol: 'circle', symbolSize: 7, lineStyle: { color: '#1a8cdc', width: 2.2 }, itemStyle: { color: '#1a8cdc' },
         markLine: { silent: true, symbol: 'none', data: [
-          { yAxis: WARN, lineStyle: { color: '#d8a800', type: 'dashed' }, label: { formatter: '주의 90.1', color: '#8a6a00', fontSize: 11, position: 'insideEndTop' } },
-          { yAxis: STRONG, lineStyle: { color: '#d83f4b', type: 'dashed' }, label: { formatter: '경보 75.3', color: '#d83f4b', fontSize: 11, position: 'insideEndTop' } },
+          { yAxis: WARN, lineStyle: { color: '#d8a800', type: 'dashed' }, label: { formatter: `주의 ${WARN}`, color: '#8a6a00', fontSize: 11, position: 'insideEndTop' } },
+          { yAxis: STRONG, lineStyle: { color: '#d83f4b', type: 'dashed' }, label: { formatter: `경보 ${STRONG}`, color: '#d83f4b', fontSize: 11, position: 'insideEndTop' } },
           { yAxis: 30, lineStyle: { color: '#1f2933', type: 'dotted' }, label: { formatter: '급락 30원', color: '#1f2933', fontSize: 11, position: 'insideEndTop' } }] } }]),
       { name: '공표 한낮 최저', type: 'line', data: rows.map((r) => r.y), symbol: 'rect', symbolSize: 7, lineStyle: { color: '#1f2933', width: 1.4 },
         itemStyle: { color: (p: any) => (rows[p.dataIndex].y != null && rows[p.dataIndex].y! < 30 ? '#d83f4b' : '#1f2933') },
         markLine: hasMin ? undefined : { silent: true, symbol: 'none', data: [{ yAxis: 30, lineStyle: { color: '#1f2933', type: 'dotted' }, label: { formatter: '급락 30원', color: '#1f2933', fontSize: 11, position: 'insideEndTop' } }] } },
     ],
   }), [dates.join()])
-  const n = rows.filter((r) => r.res !== '-')
+  const n = rows.filter((r) => r.res !== '-' && r.res !== '평일')
   const cnt = (k: string) => n.filter((r) => r.res === k).length
   return (
     <>
@@ -76,7 +77,7 @@ function DropFlow({ dates }: { dates: string[] }) {
         { k: '실제 급락일', v: cnt('적중') + cnt('놓침'), s: '한낮 최저 30원 미만' },
         { k: '적중 / 놓침', v: `${cnt('적중')} / ${cnt('놓침')}`, s: '주의 이상 경보 기준', tone: cnt('놓침') ? 'bad' : undefined },
         { k: '헛경보', v: cnt('헛경보'), s: '경보했지만 급락 없음' },
-        { k: '평균 급락 확률', v: pct(avg(rows.map((r) => r.dr?.prob ?? null)), 0), s: `휴무일 ${dates.filter((d) => info(d).off).length}일 포함` },
+        { k: '평균 급락 확률', v: pct(avg(rows.map((r) => r.dr?.prob ?? null)), 0), s: `휴일·주말 ${dates.filter((d) => info(d).off).length}일 (평일은 대상 아님)` },
       ]} />
       <Card title={hasMin ? '예상 한낮 최저 vs 공표 한낮 최저' : '급락 확률 vs 공표 한낮 최저'} sub={hasMin ? '막대 = 급락 확률(오른쪽 축) · 점선 = 등급 문턱' : '막대 = 급락 확률(오른쪽 축) · 점선 = 급락 기준 30원'}
         right={<Legend items={[...(hasMin ? [{ t: '예상 한낮 최저 (과제1)', c: 'pred' }] : []), { t: '공표 한낮 최저', c: 'act' }]} />}>
@@ -92,7 +93,7 @@ function DropFlow({ dates }: { dates: string[] }) {
               {rows.map((r) => (
                 <tr key={r.d}>
                   <td className={`l ${info(r.d).off ? 'text-bad' : ''}`}>{lab(r.d)} {info(r.d).dt !== '평일' ? info(r.d).dt : ''}</td>
-                  {hasMin && <td>{fmt(r.dr?.min)}</td>}<td className="l"><DropChip d={r.dr} /></td>
+                  {hasMin && <td>{fmt(r.dr?.min)}</td>}<td className="l"><DropChip d={r.dr} date={r.d} /></td>
                   <td className={`font-semibold ${r.y != null && r.y < 30 ? 'text-bad' : ''}`}>{fmt(r.y)}</td>
                   <td className={`l font-semibold ${r.res === '적중' ? 'text-good' : r.res === '놓침' || r.res === '헛경보' ? 'text-bad' : 'text-mute'}`}>{r.res}</td>
                 </tr>
@@ -101,7 +102,7 @@ function DropFlow({ dates }: { dates: string[] }) {
           </table>
         </div>
       </Card>
-      <p className="muted">내일 급락 경보 = 대상일 하루 전 15시에 {D.dropMeta.model}이 낸 판정. 급락 = 11~15시 최저 SMP 30원 미만. 결과는 주의 이상을 경보로 봅니다.</p>
+      <p className="muted">내일 급락 경보 = 대상일 하루 전 15시에 {D.dropMeta.model}이 낸 판정. 급락 = 휴일·주말 11~15시 최저 SMP 30원 미만 (평일은 판정 대상 아님, 팀 공통 규칙). 결과는 주의 이상을 경보로 봅니다.</p>
     </>
   )
 }

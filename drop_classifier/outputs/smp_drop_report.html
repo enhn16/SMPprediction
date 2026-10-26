@@ -155,7 +155,7 @@ table.models tr.total td{background:var(--sun-soft)}
   <p class="lead">현업 주간 예측과 같은 시각(전날 15시)에, 그때 공개된 공공데이터만으로 판단합니다. 2024~2025년 자료로만 모델을 고르고 학습시킨 뒤, 한 번도 보여 주지 않은 2026년 1월 1일 ~ 10월 18일(291일)을 한 번 채점했습니다.</p>
   <div class="kpis">
     <div class="kpi"><b class="num">18<small> / 20일</small></b><span>2026년 급락을 전날 15시에 미리 적중 (재현율 90%)</span></div>
-    <div class="kpi"><b class="num">72<small>일</small></b><span>헛경보 ("휴무일이면 급락" 규칙은 같은 적중에 81일). 강한 경보만 보면 43일 중 16일 적중 (정밀도 37%)</span></div>
+    <div class="kpi"><b class="num">72<small>일</small></b><span>헛경보 ("휴무일이면 급락" 규칙은 같은 적중에 81일). 경보만 보면 43일 중 16일 적중 (정밀도 37%)</span></div>
     <div class="kpi"><b class="num">0.93</b><span>ROC-AUC: 위험한 날을 앞에 세우는 능력 (1이 완벽)</span></div>
   </div>
 </section>
@@ -326,13 +326,13 @@ table.models tr.total td{background:var(--sun-soft)}
   <div class="panel scroll"><table><thead><tr><th>방법</th><th class="n">적중</th><th class="n">헛경보</th><th class="n">재현율</th><th class="n">정밀도</th><th class="n">헛경보율</th></tr></thead><tbody><tr><td><b>최종 모델 (Ridge+EBM+랜덤포레스트)</b></td><td class="n">18/20</td><td class="n">72</td><td class="n">90%</td><td class="n">20%</td><td class="n">26.6%</td></tr><tr><td>규칙: 휴무일이면 급락</td><td class="n">18/20</td><td class="n">81</td><td class="n">90%</td><td class="n">18%</td><td class="n">29.9%</td></tr><tr><td>규칙: 휴무일 + 맑음 예보</td><td class="n">11/20</td><td class="n">33</td><td class="n">55%</td><td class="n">25%</td><td class="n">12.2%</td></tr></tbody></table>
   <p class="muted" style="font-size:13.5px;margin-top:8px">같은 18일을 맞히는 데 "휴무일이면 급락" 규칙은 헛경보가 81일, 모델은 72일입니다. "휴무일 + 맑음 예보" 규칙은 헛경보가 적지만 급락을 9일 놓칩니다(흐린 날 급락한 9/25 추석 포함).</p></div>
   <h3>2단계 경보로 정밀도 높이기</h3>
-  <p>경보를 두 단계로 나눴습니다. 예측이 아주 낮은 날만 "강한 경보", 나머지 문턱 아래 날은 "주의"입니다. 강한 경보 문턱 75.3원은 2026년을 보기 전에, 2025년에 정밀도 50% 이상(적중 3일 이상)이 되는 가장 느슨한 값으로 정했습니다.</p>
+  <p>경보를 두 단계로 나눴습니다. 예측이 아주 낮은 날만 "경보", 나머지 문턱 아래 날은 "주의"입니다. 경보 문턱 75.3원은 2026년을 보기 전에, 2025년에 정밀도 50% 이상(적중 3일 이상)이 되는 가장 느슨한 값으로 정했습니다.</p>
   <div class="panel scroll"><table><thead><tr><th>경보 단계</th><th class="n">예측 한낮 최저 SMP</th><th class="n">경보일</th><th class="n">적중</th><th class="n">헛경보</th><th class="n">재현율</th><th class="n">정밀도</th><th class="n">헛경보율</th></tr></thead><tbody>
-    <tr class="total"><td><b>강한 경보</b></td><td class="n">75.3원 이하</td><td class="n">43</td><td class="n">16/20</td><td class="n">27</td><td class="n">80%</td><td class="n">37%</td><td class="n">10.0%</td></tr>
+    <tr class="total"><td><b>경보</b></td><td class="n">75.3원 이하</td><td class="n">43</td><td class="n">16/20</td><td class="n">27</td><td class="n">80%</td><td class="n">37%</td><td class="n">10.0%</td></tr>
     <tr><td>주의만</td><td class="n">75.3 ~ 90.1원</td><td class="n">47</td><td class="n">2</td><td class="n">45</td><td class="n">—</td><td class="n">4%</td><td class="n">—</td></tr>
     <tr><td>주의 이상 (합계)</td><td class="n">90.1원 이하</td><td class="n">90</td><td class="n">18/20</td><td class="n">72</td><td class="n">90%</td><td class="n">20%</td><td class="n">26.6%</td></tr>
   </tbody></table>
-  <p class="muted" style="font-size:13.5px;margin-top:8px">강한 경보는 약 2.7번 중 1번꼴로 실제 급락이라 대응 준비 신호로 쓸 수 있고, 주의는 예측값 옆에 붙이는 참고 배지로 씁니다. 매달 다시 학습하는 방식도 시험했지만 2025년 검증에서 오히려 나빠(헛경보 합 66 대 58) 채택하지 않았습니다.</p></div>
+  <p class="muted" style="font-size:13.5px;margin-top:8px">경보는 약 2.7번 중 1번꼴로 실제 급락이라 대응 준비 신호로 쓸 수 있고, 주의는 예측값 옆에 붙이는 참고 배지로 씁니다. 매달 다시 학습하는 방식도 시험했지만 2025년 검증에서 오히려 나빠(헛경보 합 66 대 58) 채택하지 않았습니다.</p></div>
   <h3>2026년 291일, 하루에 한 칸</h3>
   <div class="tabs" role="tablist" aria-label="방법 선택">
     <button role="tab" aria-selected="true" data-v="A">최종 모델</button>
@@ -360,7 +360,7 @@ table.models tr.total td{background:var(--sun-soft)}
     <tr><td>현업 주간 예측 D+1</td><td class="n">0일</td><td class="n">5일</td><td class="n">0.942</td></tr>
     <tr><td><b>이 모델</b></td><td class="n">4일 (주의 문턱 90.1원)</td><td class="n">2일</td><td class="n">0.977</td></tr>
   </tbody></table></div>
-  <p class="muted" style="font-size:14px">현업 예측은 급락일에도 한낮 최저를 30원 아래로 예측한 날이 없었습니다. 값이 평균 쪽으로 끌리기 때문입니다. 급락 여부를 따로 판정하는 이 모델이 필요한 이유입니다. 이 모델의 실제 문턱으로는 같은 기간 4일 모두 적중했고, 헛경보는 주의 단계 10일, 강한 경보 4일입니다.</p>
+  <p class="muted" style="font-size:14px">현업 예측은 급락일에도 한낮 최저를 30원 아래로 예측한 날이 없었습니다. 값이 평균 쪽으로 끌리기 때문입니다. 급락 여부를 따로 판정하는 이 모델이 필요한 이유입니다. 이 모델의 실제 문턱으로는 같은 기간 4일 모두 적중했고, 헛경보는 주의 단계 10일, 경보 4일입니다.</p>
 </section>
 
 <section id="compare">
@@ -512,7 +512,7 @@ document.getElementById('thrReset').addEventListener('click',()=>setThrModel(thr
 
 /* 2026년 결과: 모델별 291일 */
 const NOTES = {
-  A:'최종 모델(Ridge+EBM+랜덤포레스트). 전날 15시까지 공개된 공공데이터만 씁니다. 예측한 내일 한낮 최저 SMP가 90.1원 이하면 주의, 75.3원 이하면 강한 경보.',
+  A:'최종 모델(Ridge+EBM+랜덤포레스트). 전날 15시까지 공개된 공공데이터만 씁니다. 예측한 내일 한낮 최저 SMP가 90.1원 이하면 주의, 75.3원 이하면 경보.',
   R1:'비교용 단순 규칙: 내일이 주말·공휴일이면 무조건 경보.',
   R2:'비교용 단순 규칙: 내일이 주말·공휴일이고, 11시 단기예보에서 7개 지역 중 절반 이상이 오후 맑음(구름조금 포함)이면 경보.'};
 function drawResult(v){

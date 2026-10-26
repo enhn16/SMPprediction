@@ -2,7 +2,7 @@
 export type Row = Record<string, any>
 export type Drop = { grade: string; min: number | null; prob: number | null }
 export type Day = { date: string; H: number; dt?: string; off?: boolean; p: (number | null)[]; lo: (number | null)[]; hi: (number | null)[]; y: (number | null)[] }
-export type DropMeta = { warn: number | null; strong: number | null; model: string; real: Record<string, { rate: number; k: number; n: number }> }
+export type DropMeta = { warn: number | null; strong: number | null; model: string; real: Record<string, { rate: number; k: number; n: number }>; lines?: { 주의?: number; 경보?: number } }
 // 계통별로 바뀌는 부분 (SMP_DATA 최상위 = 육지, SMP_JEJU = 제주)
 export type RegionData = {
   lastPublished: string
@@ -24,7 +24,7 @@ export type SmpData = RegionData & {
   jdocs?: Record<string, any> // 제주일 때만
   dayinfo: Record<string, { dt: string; off: boolean }>
   perf: { week: { models: Row[]; ens: Row[]; test: Row[]; choice: Row }; month: { models: Row[]; ens: Row[]; test: Row[]; choice: Row }; dropCal: Row[]; dropChoice: Row }
-  docs: { final: Row; metrics: Row[]; nextday: Row[]; dropTest: Row[]; dropZoo: Row[] }
+  docs: { final: Row; metrics: Row[]; nextday: Row[]; dropTest: Row[]; dropZoo: Row[]; team?: Row }
 }
 
 declare global {
@@ -71,6 +71,8 @@ export const STAT_NAME: Record<Stat, string> = { mean: '일평균', mid: '한낮
 
 // 급락 등급 (과제1): 확률 문턱은 계통별 dropMeta (육지 D_choice.json, 제주 JD_choice.json의 등급 문턱 확률)
 export const LEVEL: Record<string, { key: 'low' | 'warn' | 'strong'; name: string }> = {
-  '없음': { key: 'low', name: '낮음' }, '주의': { key: 'warn', name: '주의' }, '강한 경보': { key: 'strong', name: '경보' },
+  '없음': { key: 'low', name: '낮음' }, '주의': { key: 'warn', name: '주의' }, '강한 경보': { key: 'strong', name: '경보' }, '경보': { key: 'strong', name: '경보' },
 }
 export const info = (d: string) => D.dayinfo[d] ?? { dt: '', off: false }
+/** 급락 경보 판정 대상: 휴일·주말만 (팀 공통 규칙). 평일은 '대상 아님'으로 표시 */
+export const dropTarget = (d: string) => info(d).off

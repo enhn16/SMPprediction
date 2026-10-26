@@ -9,12 +9,13 @@
 계통: 육지 = forecast_data.js(window.SMP_DATA), 제주 = forecast_data_jeju.js(window.SMP_JEJU, 같은 구조 + 제주 참고 문서 jdocs).
       웹은 제주를 고를 때만 제주 파일을 읽음 (왼쪽 메뉴 전환)
 입력: WZ_predictions_hourly.csv(일주일, wz_ens) · MZ_predictions_daily.csv(한 달, mz_ens — 없으면 M_predictions_daily.csv)
-      ops 운영 기록(있으면 같은 대상 덮어씀) · drop_badge.csv / ops drop_log.csv (급락 확률)
+      ops 운영 기록(있으면 같은 대상 덮어씀) · 급락 = drop_classifier/outputs/tables/drop_육지_15h.csv(R1) / ops drop_log.csv
       제주: jeju/JWZ_predictions_hourly.csv · JMZ_predictions_daily.csv · drop_badge_제주.csv + jeju/ops/{jwz,jdaily,jdrop}_log.csv
 실행: python -m smp_forecast_app.src.export_web
 """
 import json
 
+import numpy as np
 import pandas as pd
 
 from common.calendar import build_calendar
@@ -57,6 +58,13 @@ def _table_at(p):
     return json.loads(pd.read_csv(p).round(4).to_json(orient="records", force_ascii=False)) if p.exists() else []
 
 
+LAND_DROP_CHOICE = ROOT / "drop_classifier" / "outputs" / "tables" / "drop_choice_육지.json"
+
+
+def _json_at(p):
+    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+
+
 def _json(name):
     p = TAB / name
     return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
@@ -64,7 +72,7 @@ def _json(name):
 
 # 계통별 입력 (제주는 제주 채팅 결과 파일 + 제주 운영 기록, docs/JEJU.md 1절)
 SRC = {
-    "육지": {"hourly": DATA / "WZ_predictions_hourly.csv", "daily": DATA / "MZ_predictions_daily.csv", "drop": DATA / "drop_badge.csv",
+    "육지": {"hourly": DATA / "WZ_predictions_hourly.csv", "daily": DATA / "MZ_predictions_daily.csv", "drop": ROOT / "drop_classifier" / "outputs" / "tables" / "drop_육지_15h.csv",   # R1 산출 (2026-10-26 교체)
              "ops": OPS, "logs": ("hourly_log.csv", "daily_log.csv", "drop_log.csv")},
     "제주": {"hourly": JDIR / "JWZ_predictions_hourly.csv", "daily": JDIR / "JMZ_predictions_daily.csv", "drop": JDIR / "drop_badge_제주.csv",
              "ops": JDIR / "ops", "logs": ("jwz_log.csv", "jdaily_log.csv", "jdrop_log.csv")},
@@ -97,25 +105,25 @@ def daily_frame(region="육지"):
 
 def drop_meta(region, drop):
     """급락 등급 문턱 확률·모델 이름·2026년 등급별 실제 급락 비율 (웹 눈금 막대용)."""
-    if region == "육지":
-        thr = _json("D_choice.json").get("등급 문턱 확률", {})
-        real = {r["구분"][3:]: {"rate": r["실제 급락 비율"], "k": int(r["급락일"]), "n": int(r["일수"])}
-                for r in _table("D1_drop_calibration.csv") if r["연도"] == 2026 and str(r["구분"]).startswith("등급 ")}
-        return {"warn": thr.get("주의(90.1원)"), "strong": thr.get("강한 경보(75.3원)"), "real": real,
-                "model": "과제1 모델(Ridge+EBM+랜덤포레스트)"}
-    thr = _json("JD_choice.json").get("등급 문턱 확률", {})
     d = drop[drop["date"] >= "2026-01-01"].dropna(subset=["label"]) if "label" in drop else drop.iloc[:0]
     real = {g: {"rate": round(float(x["label"].mean()), 4), "k": int(x["label"].sum()), "n": len(x)} for g, x in d.groupby("grade")}
+    if region == "육지":   # 문턱은 예상 한낮 최저(원) → 확률식으로 눈금 막대 위치
+        ch = _json_at(LAND_DROP_CHOICE)
+        a, b = ch["확률식"]["a"], ch["확률식"]["b"]
+        pr = lambda x: round(float(1 / (1 + np.exp(-(a * -x + b)))), 4)
+        return {"warn": pr(ch["문턱"]["주의"]), "strong": pr(ch["문턱"]["경보"]), "real": real, "lines": ch.get("문턱 표시", {}),
+                "model": "과제1 모델(Ridge+EBM+랜덤포레스트)"}
+    thr = _json("JD_choice.json").get("등급 문턱 확률", {})
     return {"warn": thr.get("주의"), "strong": thr.get("강한 경보"), "real": real, "model": "과제1 제주 모델(KNN 분류: 과거 비슷한 날 25일)"}
 
 
-def jeju_drop_cal():
-    """제주 급락 확률 점검표 (육지 D1_drop_calibration.csv와 같은 열): 연도 × 등급·확률 구간, 2025 = 표본 밖, 2026 = 시험."""
-    d = pd.read_csv(SRC["제주"]["drop"]).dropna(subset=["label"])
+def drop_cal(region):
+    """급락 확률 점검표: 연도 × 등급·확률 구간 (label이 있는 날만 — 육지는 휴일·주말), 2025 = 검증, 2026 = 시험."""
+    d = _drop_file(region).dropna(subset=["label"])
     d["연도"] = d["date"].str[:4].astype(int)
     rows = []
     for y, g in d.groupby("연도"):
-        parts = [(f"등급 {k}", g[g["grade"] == k]) for k in ("강한 경보", "주의", "없음")]
+        parts = [(f"등급 {k}", g[g["grade"] == k]) for k in ("경보", "강한 경보", "주의", "없음")]
         bins = [(0, .05, "0%~5%"), (.05, .2, "5%~20%"), (.2, .5, "20%~50%"), (.5, 1.01, "50%~100%")]
         parts += [(f"확률 {t}", g[(g["prob"] >= a) & (g["prob"] < b)]) for a, b, t in bins]
         for k, x in parts:
@@ -125,14 +133,20 @@ def jeju_drop_cal():
     return rows
 
 
+def _drop_file(region):
+    """경보 백테스트 파일 (열 이름을 웹 공통으로: score → pred_min)."""
+    p = SRC[region]["drop"]
+    d = pd.read_csv(p) if p.exists() else pd.DataFrame(columns=["date", "grade", "pred_min", "prob"])
+    return d.rename(columns={"score": "pred_min"}) if "score" in d and "pred_min" not in d else d
+
+
 def region_payload(region, dayinfo):
     """한 계통의 일주일·한 달·이전 흐름·급락 데이터."""
     act = load_smp_actual(region)[["date", "hour", "smp"]].rename(columns={"smp": "y"})
     actual = {d.strftime("%Y-%m-%d"): _h24(g, "y") for d, g in act[act["date"] >= PAST_SINCE].groupby("date")}
     w = hourly_frame(region)
 
-    p = SRC[region]["drop"]
-    drop = pd.read_csv(p) if p.exists() else pd.DataFrame(columns=["date", "grade", "pred_min", "prob"])
+    drop = _drop_file(region)
     od = _log(region, 2)
     if len(od):
         drop = pd.concat([drop[~drop["date"].isin(od["date"])], od])
@@ -187,13 +201,17 @@ def main():
                  "choice": _json("WZ_choice.json")},
         "month": {"models": _table("MZ1_models.csv"), "ens": _table("MZ2_ensembles_2025H2.csv"), "test": _table("MZ3_test2026.csv"),
                   "choice": _json("MZ_choice.json")},
-        "dropCal": _table("D1_drop_calibration.csv"), "dropChoice": _json("D_choice.json"),
+        "dropCal": drop_cal("육지"), "dropChoice": _json_at(LAND_DROP_CHOICE),
     }
     t1 = ROOT / "drop_classifier" / "outputs" / "tables"
     docs = {"final": _json("F_final.json"), "metrics": _table("F1_final_metrics.csv"), "nextday": _table("F2_nextday_compare.csv"),
-            "dropTest": _table_at(t1 / "13_final_test2026_육지.csv"),
+            "dropTest": _table_at(t1 / "13_final_test2026_육지.csv"), "dropScore": _table_at(t1 / "drop_score_육지.csv"), "dropSelect": _table_at(t1 / "18_team_select_육지.csv")[:10],
             "dropZoo": json.loads(pd.read_csv(t1 / "17_zoo_cv2025_육지.csv").drop(columns=["초"], errors="ignore").head(15)
                                   .round(4).to_json(orient="records", force_ascii=False))}
+    # 팀 비교표 (team_scorecard.py: 2026-01-01 ~ 10-18, 급락 = 휴일·주말) — 계통별로 나눠 참고 문서 개요에
+    tp, td, ti = _table("T1_team_price.csv"), _table("T2_team_drop.csv"), _json("T_team.json")
+    team = lambda reg: {"price": [r for r in tp if r["계통"] == reg], "drop": [r for r in td if r["계통"] == reg], "info": ti}
+    docs["team"] = team("육지")
     try:
         jeju = region_payload("제주", dayinfo)
         jc = _json("JD_choice.json")
@@ -206,7 +224,7 @@ def main():
                          "weekEns": _table("JWZ2_ensembles_2025H2.csv", ["앙상블", "구성 수", "2025 하반기", "구성"])[:12],
                          "monthCompare": _table("JMZ1_compare_2025H2.csv"),
                          "dropZoo": _table_at(t1 / "J8_zoo_stability_2025.csv")[:12],
-                         "dropCal": jeju_drop_cal()}
+                         "dropCal": drop_cal("제주"), "team": team("제주")}
     except Exception as e:  # noqa: BLE001  제주가 실패해도 육지 화면은 내보냄
         print(f"제주 내보내기 실패: {e!r}")
         jeju = None

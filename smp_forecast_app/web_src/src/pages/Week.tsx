@@ -52,7 +52,7 @@ export function Week() {
     <div className="space-y-5">
       <PageHeader title="일주일 예측" sub={<>{lab(days[0].date)} ~ {lab(days[days.length - 1].date)} 시간별 SMP · 기준일 {W.base} 15시 판단 · 80% 범위</>}
         right={<Seg value={view === 'all' ? 'all' : 'day'} onChange={(v) => setView(v === 'all' ? 'all' : 0)} options={[{ v: 'all', t: '7일 전체' }, { v: 'day', t: '날짜별' }]} />} />
-      <DropMeter d={W.drop} date={lab(days[0].date)} />
+      <DropMeter d={W.drop} date={lab(days[0].date)} iso={days[0].date} />
       <RecentScore />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
         {days.map((d, i) => {

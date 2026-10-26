@@ -9,7 +9,7 @@
   일주일 (1~7일 뒤, 시간별): Chronos-2 small 중앙값 + λ × 잔차 보정(외부 정보 LightGBM, wz_resid). 범위 = WZ_choice의 지평별 방법
         (Chronos-2 분위수 그대로 / 보정 분위수 회귀(Chronos-2 분위수, 90일 갱신, 시간대묶음×휴무일))
   한 달 (7~34일 뒤, 일별 4개 지표): 기준(최근 같은 유형일 4일 평균) + λ × (LSTM·GRU 평균 − 기준), λ·범위는 MZ_choice
-  내일 급락 경고: 과제1 최종 모델(Ridge+EBM+랜덤포레스트)을 매일 판단일까지의 자료로 학습해 계산 → 확률 보정(D_choice)
+  내일 급락 경보: R1 산출 ops_drop.predict (Ridge+EBM+랜덤포레스트, 2023~전년도 말 고정 학습, drop_choice_육지.json 문턱·확률)
 판단 시각 규칙: 기준일 I의 예측은 I일 15시에 알 수 있는 값만 (I일 SMP는 I-1일 저녁 공표). 늦게 켜져도 같은 값,
   실제 산출 시각(run_at)을 기록. 밀린 기준일은 최대 14일까지 따라잡음.
   제주: jz_ops.weekly·drops·monthly (모델·근거는 docs/JEJU.md). 육지 운영 기록을 읽으므로 육지 다음에 실행
@@ -36,7 +36,6 @@ from smp_forecast_app.src.intervals import add_keys
 from smp_forecast_app.src.model import cqr
 from smp_forecast_app.src.mz_ens import INTV
 from smp_forecast_app.src.model_monthly import interval as m_interval
-from smp_forecast_app.src.ops_drop import drop_features, grade_of, predict_min
 
 DATA = PROCESSED_DIR / "smp_forecast_app"
 OPS = DATA / "ops"
@@ -300,20 +299,13 @@ def monthly(bases, run_at):
 
 
 def drops(bases, run_at):
-    dch = json.loads((TAB / "D_choice.json").read_text(encoding="utf-8"))
-    dfe = drop_features()
-    rows = []
-    for I in bases:
-        d1 = I + pd.Timedelta(days=1)
-        if d1 not in set(dfe["date"]):
-            continue
-        tr = dfe[dfe["label"].notna() & (dfe["date"] <= I)]   # 판단일까지 확정된 날로 학습 (2024~)
-        pm = float(predict_min(tr, dfe[dfe["date"] == d1])[0])
-        prob = 1 / (1 + np.exp(-(dch["a"] + dch["b"] * pm)))
-        rows.append({"run_at": run_at, "base_date": I.strftime("%Y-%m-%d"), "date": d1.strftime("%Y-%m-%d"), "pred_min": round(pm, 2),
-                     "grade": str(grade_of(np.array([pm]))[0]), "prob": round(float(prob), 4)})
-    if rows:
-        _append("drop_log.csv", pd.DataFrame(rows), ["date"])
+    """내일 급락 경보 (R1 산출, 2026-10-26 교체): ops_drop.predict — Ridge+EBM+RF, 2023~전년도 말 고정 학습,
+    문턱·확률식은 drop_classifier/outputs/tables/drop_choice_육지.json. 등급 값 없음/주의/경보."""
+    from smp_forecast_app.src.ops_drop import predict
+    r = predict(bases)
+    if len(r):
+        r = r.rename(columns={"score": "pred_min"}).assign(run_at=run_at)
+        _append("drop_log.csv", r[["run_at", "base_date", "date", "pred_min", "grade", "prob"]], ["date"])
 
 
 # ---------------------------------------------------------------- 제주 (제주 채팅이 만든 jz_ops 호출, 육지 산출 뒤)
@@ -373,8 +365,8 @@ def jeju(today, run_at):
 
 
 def collect_accum():
-    """매일 쌓아야 사라지지 않는 자료 (아직 피처 미사용, 새 시험 구간에서 검토용). daily·actuals(21:30·23:50) 모두 호출."""
-    run(["common.collect.kma_vilage_fcst", "3"])   # 단기예보 11·14시 발표분 — API가 최근 3일만 제공
+    """매일 쌓아야 사라지지 않는 자료 (팀 공통 데이터 목록 13종 중, 아직 피처 미사용). daily·actuals(21:30·23:50) 모두 호출.
+    전력수급예보(kpx_demand_fcst)·단기예보 격자(kma_vilage_fcst)는 팀 목록 밖이라 2026-10-26부터 수집하지 않음."""
     run(["common.collect.kpx_sukub"])              # 육지 5분 수급 — API가 오늘분만 제공 (23:50 실행이 하루 끝까지 받음)
 
 
@@ -402,7 +394,6 @@ def daily():
     run(["common.collect.openmeteo_prevruns", (today - pd.Timedelta(days=5)).strftime("%Y-%m-%d"),
          (today + pd.Timedelta(days=1)).strftime("%Y-%m-%d")])   # D+1 일사·운량 (D-2 실행분, H=1 피처)
     run(["common.collect.kpx_weekly_outlook"])
-    run(["common.collect.kpx_demand_fcst"])
     collect_accum()
     collect_jeju(today)
     if today.day <= 10:

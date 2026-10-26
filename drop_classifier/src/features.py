@@ -109,7 +109,8 @@ def ko(name: str) -> str:
     return " × ".join(FEATURE_KO.get(p.strip(), p.strip()) for p in name.split("&"))
 
 
-def build() -> pd.DataFrame:
+def build(start: str = START) -> pd.DataFrame:
+    """start: 남길 첫 날짜 (기본 2024-01-01 = 기존 동작, 팀 규칙 재선택은 2023-01-01)."""
     label = pd.read_csv(OUT_DATA / f"daily_label_{REGION}.csv", parse_dates=["date"])
     stations = FORECAST_STATIONS[REGION]
 
@@ -189,7 +190,7 @@ def build() -> pd.DataFrame:
     df["is_after_offday"] = ((off == 0) & (off.shift(1) == 1)).astype(int)
     df["trend_years"] = (df["date"] - pd.Timestamp(START)).dt.days / 365.25
 
-    df = df[df["date"] >= START].reset_index(drop=True)
+    df = df[df["date"] >= start].reset_index(drop=True)
     return df
 
 

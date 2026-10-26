@@ -1,10 +1,11 @@
-import { D, DROP_REAL, LEVEL, T_STRONG, T_WARN, type Drop } from '../data'
+import { D, DROP_REAL, LEVEL, T_STRONG, T_WARN, dropTarget, type Drop } from '../data'
 import { fmt } from '../fmt'
 
 const COLOR = { low: '#4fb386', warn: '#f2c200', strong: '#d83f4b' }
 const SOFT = { low: '#d6f0e3', warn: '#fdf1b0', strong: '#f8cdd1' }
 
-export function DropChip({ d }: { d?: Drop }) {
+export function DropChip({ d, date }: { d?: Drop; date?: string }) {
+  if (date && !dropTarget(date)) return <span className="rounded-full bg-[#eef1f4] px-2.5 py-0.5 text-[12px] font-semibold text-mute">평일 · 대상 아님</span>
   if (!d) return <span className="text-mute">-</span>
   const lv = LEVEL[d.grade] ?? LEVEL['없음']
   return (
@@ -17,7 +18,16 @@ export function DropChip({ d }: { d?: Drop }) {
 }
 
 /** 내일 급락 경보: 확률 + 낮음·주의·경보 눈금 막대 */
-export function DropMeter({ d, date }: { d?: Drop; date?: string }) {
+export function DropMeter({ d, date, iso }: { d?: Drop; date?: string; iso?: string }) {
+  if (iso && !dropTarget(iso)) {
+    return (
+      <div className="card flex flex-wrap items-baseline gap-x-3 gap-y-1 p-5" style={{ borderLeft: '5px solid #c9d4de' }}>
+        <span className="text-[12.5px] font-semibold text-sub">내일 급락 경보{date ? ` · ${date}` : ''}</span>
+        <span className="text-[20px] font-extrabold text-mute">평일 — 판정 대상 아님</span>
+        <span className="text-[12.5px] text-mute">급락 경보는 휴일·주말만 냅니다 (팀 공통 규칙)</span>
+      </div>
+    )
+  }
   if (!d) return null
   const lv = LEVEL[d.grade] ?? LEVEL['없음']
   const p = Math.min(100, Math.max(0, (d.prob ?? 0) * 100))

@@ -1,4 +1,4 @@
-import { D, LEVEL, REGION } from '../data'
+import { D, LEVEL, REGION, dropTarget } from '../data'
 import { avg, fmt, lab } from '../fmt'
 import { Card, PageHeader } from '../components/ui'
 import type { Route } from '../App'
@@ -6,7 +6,7 @@ import type { Route } from '../App'
 export function Help({ go }: { go: (r: Route) => void }) {
   const W = D.week, M = D.month, dr = W.drop
   const tiles: { r: Route; t: string; v: string; s: string }[] = [
-    { r: 'week', t: '내일 급락 경보', v: dr ? `${LEVEL[dr.grade]?.name ?? dr.grade}` : '-', s: `${lab(W.days[0].date)} 한낮 최저 30원 미만 여부 · 모델 추정 ${dr?.prob != null ? Math.round(dr.prob * 100) + '%' : '-'}` },
+    { r: 'week', t: '내일 급락 경보', v: !dropTarget(W.days[0].date) ? '평일 (대상 아님)' : dr ? `${LEVEL[dr.grade]?.name ?? dr.grade}` : '-', s: `${lab(W.days[0].date)} 한낮 최저 30원 미만 여부 · 모델 추정 ${dr?.prob != null ? Math.round(dr.prob * 100) + '%' : '-'}` },
     { r: 'week', t: '일주일 예측', v: `${fmt(avg(W.days.flatMap((d) => d.p)))}원`, s: `${lab(W.days[0].date)} ~ ${lab(W.days[W.days.length - 1].date)} 평균` },
     { r: 'month', t: '한 달 예측', v: `${fmt(avg(M.p_mean))}원`, s: `${lab(M.d[0])} ~ ${lab(M.d[M.d.length - 1])} 일평균 (참고)` },
   ]
