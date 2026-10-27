@@ -21,6 +21,7 @@ from common.calendar import build_calendar
 from common.config import PROCESSED_DIR, ROOT, SEED
 from common.loaders import load_smp_actual
 from smp_forecast_app.src.final_metrics import hourly_segments, metrics
+from smp_forecast_app.src import range_adjust
 from smp_forecast_app.src.jz_month import daily_stats
 
 DATA = PROCESSED_DIR / "smp_forecast_app"
@@ -46,6 +47,7 @@ def price_rows(region):
     lag = lambda k: act.assign(date=act["date"] + pd.Timedelta(days=k)).rename(columns={"smp": f"lag{k}"})
     w = pd.read_csv(SRC[region]["week"], parse_dates=["base_date", "date"])
     w = w[w["y"].notna() & in_test(w["date"])].merge(lag(7), on=["date", "hour"], how="left").merge(lag(1), on=["date", "hour"], how="left")
+    w = range_adjust.apply(w.reset_index(drop=True), region)   # 운영·웹과 같은 범위 보정 (휴일·주말 한낮 하한, RA_choice.json)
     rows = []
     for prod, g, naive in (("일주일", w, "lag7"), ("일주일 D+1", w[w["H"] == 1], "lag1")):
         for seg, m in hourly_segments(g).items():

@@ -21,6 +21,7 @@ import pandas as pd
 from common.calendar import build_calendar
 from common.config import PROCESSED_DIR, ROOT
 from common.loaders import load_smp_actual
+from smp_forecast_app.src import range_adjust
 from smp_forecast_app.src.features_daily import daily_stats
 from smp_forecast_app.src.jz_month import daily_stats as jz_daily_stats
 
@@ -91,7 +92,7 @@ def hourly_frame(region="육지"):
         key = lambda x: x["base_date"].astype(str) + "_" + x["H"].astype(str)
         o = oh[["base_date", "H", "date", "hour", "pred", "lo", "hi"]]
         w = pd.concat([w[~key(w).isin(key(o))], o])
-    return w
+    return range_adjust.apply(w.reset_index(drop=True), region)   # 휴일·주말 한낮 하한 보정 (2026-10-27, RA_choice.json)
 
 
 def daily_frame(region="육지"):
@@ -203,6 +204,7 @@ def main():
         "month": {"models": _table("MX1_models_v2.csv"), "ens": _table("MX2_ensembles_2025_v2.csv"), "test": _table("MX4_test2026_v2.csv"),
                   "choice": _json("MX_choice_v2.json")},
         "dropCal": drop_cal("육지"), "dropChoice": _json_at(LAND_DROP_CHOICE),
+        "rangeAdj": {"choice": _json("RA_choice.json"), "test": _table("RA2_test2026.csv")},
     }
     t1 = ROOT / "drop_classifier" / "outputs" / "tables"
     docs = {"final": _json("F_final.json"), "metrics": _table("F1_final_metrics.csv"), "nextday": _table("F2_nextday_compare.csv"),
@@ -225,7 +227,8 @@ def main():
                          "weekEns": _table("JWZ2_ensembles_2025H2.csv", ["앙상블", "구성 수", "2025 하반기", "구성"])[:12],
                          "monthCompare": _table("JMZ1_compare_2025H2.csv"),
                          "dropZoo": _table_at(t1 / "J8_zoo_stability_2025.csv")[:12],
-                         "dropCal": drop_cal("제주"), "team": team("제주")}
+                         "dropCal": drop_cal("제주"), "team": team("제주"),
+                         "rangeAdj": {"choice": _json("RA_choice.json"), "test": _table("RA2_test2026.csv")}}
     except Exception as e:  # noqa: BLE001  제주가 실패해도 육지 화면은 내보냄
         print(f"제주 내보내기 실패: {e!r}")
         jeju = None

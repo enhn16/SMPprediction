@@ -55,6 +55,7 @@
 - 웹 데이터: `smp_forecast_app/web/data/forecast_data.js`(육지·공통) + `forecast_data_jeju.js`(제주) (백테스트 결과 + 운영 기록, 같은 대상은 운영 기록 우선). 푸시는 두 파일만 커밋
 
 ## 범위 계산
+- **휴일·주말 한낮 하한 보정** (2026-10-27, `range_adjust.py`, `RA_choice.json`): 운영 기록에는 원래 범위를 남기고, 웹 데이터(`export_web`)·팀 비교표가 읽을 때 적용. 육지 = 2~7일 뒤 휴일·주말 11~15시 하한 × 0.85, 제주 = 같은 규칙 + 내일 급락 경보(경보 0원·주의 절반). 선택을 바꾸면 `python -m smp_forecast_app.src.range_adjust` 후 `--score2026`
 - 오차 이력 = 백테스트 표본 밖 예측(wzoo c2s·c2, MZ_predictions_daily) + 운영 기록. 방법은 2025로 고른 것 그대로 (WZ_choice·MZ_choice).
 
 ## 수동 실행

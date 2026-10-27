@@ -84,6 +84,28 @@ function TeamSec({ t, region }: { t?: Row; region: string }) {
   )
 }
 
+/** 80% 범위 보정 (2026-10-27, range_adjust.py): 휴일·주말 한낮 하한 열기 — 육지·제주 공용 */
+function RangeAdjSec({ ra, region }: { ra?: Row; region: string }) {
+  const ch: Row = ra?.choice?.[region] ?? {}
+  const t: Row[] = (ra?.test ?? []).filter((r: Row) => r['계통'] === region)
+  return (
+    <Sec title="80% 범위 보정: 휴일·주말 한낮" sub="2026-10-27 · 2025 하반기로 선택 → 2026-01-01 ~ 10-18 한 번 채점">
+      <p>일주일 범위는 휴일·주말 한낮의 급락을 잘 담지 못해 하한 아래로 벗어나는 경우가 많았습니다. 점예측은 그대로 두고, <b>휴일·주말 11~15시의 하한만</b> 엽니다.</p>
+      <ul>
+        <li><b>내일(D+1)</b>: 내일 급락 경보에 따라 — {ch['D+1'] ?? '-'}</li>
+        <li><b>2~7일 뒤</b>: 급락 모델 없이 규칙으로 — {ch['D+2~7'] ?? '-'}</li>
+        <li>후보(D+1: 안 함·0원·단계별·확률 비례, 2~7일 뒤: 하한 ×0.85·0.7·0.5·0원)는 채점 전에 고정했고, 바뀌는 시간의 구간점수가 가장 낮은 것(1% 이내면 단순한 쪽)을 골랐습니다.</li>
+      </ul>
+      <Table rows={t} csv={`${region}_범위보정_2026`} cols={[{ k: '구분', t: '구분', l: true }, { k: '보정 후 시간수', t: '시간 수' },
+        { k: '보정 전 포함률', t: '전 포함률', f: (v) => pct(v) }, { k: '보정 후 포함률', t: '후 포함률', f: (v) => pct(v) },
+        { k: '보정 전 하한 아래', t: '전 하한 아래', f: (v) => pct(v) }, { k: '보정 후 하한 아래', t: '후 하한 아래', f: (v) => pct(v) },
+        { k: '보정 전 평균 폭', t: '전 폭', f: (v) => fmt(v) }, { k: '보정 후 평균 폭', t: '후 폭', f: (v) => fmt(v) },
+        { k: '보정 전 구간점수', t: '전 구간점수', f: (v) => fmt(v) }, { k: '보정 후 구간점수', t: '후 구간점수', f: (v) => fmt(v) }]} />
+      <p className="!text-[12.5px] !text-mute">급락 시간(30원 미만)은 보정 뒤에도 대부분 범위 밖입니다 — 가격 범위는 '평소'를, 급락은 내일 급락 경보를 보세요. 이 페이지의 다른 성적표도 보정된 범위 기준입니다.</p>
+    </Sec>
+  )
+}
+
 /** 성적 지표 읽는 법 (육지·제주 공용) */
 function Glossary({ base }: { base: string }) {
   return (
@@ -109,7 +131,7 @@ function Overview() {
   const w = met('일주일', '2026', '전체'), w1 = met('일주일 D+1', '2026', '전체'), m = met('한 달', '2026', '일평균')
   const final = [
     { a: '내일 급락 경보', m: `과제1 최종 모델: Ridge + EBM + 랜덤포레스트 평균(2023~2025 학습) → 내일 한낮 최저 SMP → 주의(≤${D.perf.dropChoice?.['문턱 표시']?.['주의'] ?? '-'}원)·경보(≤${D.perf.dropChoice?.['문턱 표시']?.['경보'] ?? '-'}원), 급락 확률`, s: '급락 20일 중 주의 이상 18일 적중 (헛경보 72) · 경보 16일 (헛경보 27) · ROC-AUC 0.93' },
-    { a: '일주일 예측 (D+1~D+7, 시간별)', m: `Chronos-2 small + ${WZC['잔차 보정 λ'] ?? 0.5} × 잔차 보정 (외부 정보 LightGBM)`, s: `MAE ${n2(w.MAE)}원 · 포함률 ${pct(w['포함률'])} · 폭 ${fmt(w['평균 폭'])}원 (내일 시간별 MAE ${n2(w1.MAE)}원)` },
+    { a: '일주일 예측 (D+1~D+7, 시간별)', m: `Chronos-2 small + ${WZC['잔차 보정 λ'] ?? 0.5} × 잔차 보정 (외부 정보 LightGBM), 휴일·주말 한낮 범위 하한 보정`, s: `MAE ${n2(w.MAE)}원 · 포함률 ${pct(w['포함률'])} · 폭 ${fmt(w['평균 폭'])}원 (내일 시간별 MAE ${n2(w1.MAE)}원)` },
     { a: '한 달 예측 (7~34일 뒤, 일별)', m: 'mx v2: Chronos 3종 × 0.75 + LSTM·GRU × 0.25 (저녁은 9개 모델 지평별 가중), 2023~ 학습', s: `일평균 MAE ${n2(m.MAE)}원 · 포함률 ${pct(m['포함률'])} (참고 전망)` },
   ]
   return (
@@ -242,6 +264,7 @@ function WeekDoc() {
         <Table rows={nd.map((r) => ({ ...r, 모델: String(r['모델']).replace(' (최종)', ' (일주일 모델 D+1)') }))} sel={(r) => String(r['모델']).includes('일주일 모델')}
           cols={[{ k: '모델', t: '모델', l: true }, { k: '2025 상반기', t: '2025 상반기', f: n2 }, { k: '2025 하반기', t: '2025 하반기', f: n2 }, { k: '2025 전체', t: '2025 전체', f: n2 }, { k: '2026 (시험)', t: '2026 (시험)', f: n2 }]} />
       </Sec>
+      <RangeAdjSec ra={(D.docs as any)?.rangeAdj} region="육지" />
       <Sec title="사용 데이터"><DataTable rows={DATA_HOURLY} /><p className="!text-[13px] font-semibold">쓰지 않은 정보</p><NotUsed /></Sec>
       <Sec title="2026 시험 성적표 (일주일 3차 시험)" sub={testRange}>
         <Table rows={metRows('일주일', '2026', (s) => !s.startsWith('D+'))} csv="육지_일주일_2026_구간별" cols={METCOLS} />
@@ -366,7 +389,7 @@ function JOverview() {
   const final = [
     { a: '내일 급락 경보', m: `과제1 제주 모델: 피처 ${JD().dropFeatures ?? 63}개 + KNN 분류 (과거 비슷한 날 25일의 급락 비율) → 주의·경보, 급락 확률`,
       s: `급락 ${dW['급락일'] ?? '-'}일 중 주의 이상 ${dW['적중'] ?? '-'}일 적중 (헛경보 ${dW['헛경보'] ?? '-'}) · 경보 ${dS['적중'] ?? '-'}일 (헛경보 ${dS['헛경보'] ?? '-'}) · ROC-AUC ${n2(dW['ROC-AUC'])}` },
-    { a: '일주일 예측 (D+1~D+7, 시간별)', m: `육지 일주일 최종 예측 + ${lam} × 제주 잔차 보정 (LightGBM)`,
+    { a: '일주일 예측 (D+1~D+7, 시간별)', m: `육지 일주일 최종 예측 + ${lam} × 제주 잔차 보정 (LightGBM), 휴일·주말 한낮 범위 하한 보정(내일은 급락 경보 반영)`,
       s: `MAE ${n2(w.MAE)}원 · 포함률 ${pct(w['포함률'])} · 폭 ${fmt(w['평균 폭'])}원 (내일 시간별 MAE ${n2(w1.MAE)}원)` },
     { a: '한 달 예측 (7~34일 뒤, 일별)', m: '육지 한 달 최종 예측 + 지표별 최근 제주−육지 차이', s: `일평균 MAE ${n2(m.MAE)}원 · 포함률 ${pct(m['포함률'])} (참고 전망)` },
   ]
@@ -509,6 +532,7 @@ function JWeek() {
         <p>내일 24시간 제주 가격은 이 모델의 D+1입니다.</p>
         <Table rows={d1} csv="제주_내일시간별" cols={METCOLS} />
       </Sec>
+      <RangeAdjSec ra={JD().rangeAdj} region="제주" />
       <Sec title="사용 데이터"><DataTable rows={J_DATA_HOURLY} /><p className="!text-[13px] font-semibold">쓰지 않은 정보</p>{J_NOT_USED}</Sec>
       <Sec title="2026 시험 성적표 (제주 1차 시험)" sub={JTEST}>
         <Table rows={jmetRows('일주일', '2026', (s) => !s.startsWith('D+'))} csv="제주_일주일_2026_구간별" cols={METCOLS} />
