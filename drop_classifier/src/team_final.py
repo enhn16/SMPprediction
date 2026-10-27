@@ -2,11 +2,11 @@
 
 결정: PLAN.md 결정 기록 2026-10-26 (사용자 결정, team_select.py·ens8.py의 다른 모델은 비교용)
   모델: final_model.py와 같음 (zoo.BASES의 Ridge·EBM(회귀)·랜덤포레스트(회귀) 평균, 피처 BASE+SOLAR, 점수 = −예상 한낮 최저)
-  데이터: team_select.data23() (2023-01-01부터, 2023 결측은 학습 구간 중앙값, EBM은 빈칸 그대로)
+  데이터: team_select.data23() (2023-01-01부터. 단기 육상예보 2023-01~11은 2026-10-27 수집 — 그 전 v0은 빈칸을 중앙값으로 채워 학습)
   문턱: 2023~2024 학습 → 2025 휴일·주말 예측에서 주의 = 급락 90% 포착, 경보 = 정밀도 50%·적중 3일 이상 중 가장 느슨
+        (없으면 적중 3일 이상 중 정밀도가 가장 높은 문턱, 같으면 가장 느슨 — 결정 기록 2026-10-27)
   확률: 같은 2025 예측에 로지스틱 보정
   시험: 2023~2025 학습 → 2026-01-01 ~ 10-18 휴일·주말 (team_scorecard.py 지표)
-  ens8.py --team의 '현재 모델'과 같은 정의 → 2026 성적은 이미 열람한 값과 같아야 함 (새 열람 아님)
 출력 (outputs/tables, ROLES.md 4.1): drop_육지_15h.csv, drop_choice_육지.json, drop_score_육지.csv
 실행: python -m drop_classifier.src.team_final
 """
@@ -37,6 +37,20 @@ def score(tr, te) -> np.ndarray:
     return np.mean([BASES[m](tr, te) for m in MEMBERS], axis=0)
 
 
+def alarm_threshold(y, s):
+    """경보 문턱: 정밀도 50%·적중 3일 이상 중 가장 느슨, 없으면 적중 3일 이상 중 정밀도 최고(같으면 가장 느슨)."""
+    t = strong_threshold(y, s)
+    if t is not None:
+        return t, "정밀도 50%"
+    best, best_p = None, -1.0
+    for t in np.sort(np.unique(s)):  # 느슨한 → 엄격한 순
+        a = s >= t
+        tp = int((a & (y == 1)).sum())
+        if tp >= 3 and tp / a.sum() > best_p + 1e-12:
+            best, best_p = float(t), tp / a.sum()
+    return best, f"대체 규칙 (정밀도 최고 {best_p:.0%})"
+
+
 def split(df, rng):
     return df[df["date"].between(*rng)]
 
@@ -50,10 +64,10 @@ def main():
     st = score(split(df, TR_FIN), te)
     vo = va["offday"].values
     yv = va.loc[vo, "label"].values
-    warn, strong = threshold_for(yv, sv[vo], RECALL_WARN), strong_threshold(yv, sv[vo])
+    warn, (strong, how) = threshold_for(yv, sv[vo], RECALL_WARN), alarm_threshold(yv, sv[vo])
     cal = LogisticRegression(C=1e6).fit(sv[vo].reshape(-1, 1), yv)
     to_prob = lambda s: cal.predict_proba(np.asarray(s).reshape(-1, 1))[:, 1]
-    print(f"문턱: 주의 {-warn:.1f}원, 경보 {-strong:.1f}원", flush=True)
+    print(f"문턱: 주의 {-warn:.1f}원, 경보 {-strong:.1f}원 ({how})", flush=True)
 
     to = te["offday"].values & te["date"].between(*TEST).values
     yt = te.loc[to, "label"].values
@@ -81,9 +95,11 @@ def main():
               "확률식": {"형태": "prob = 1/(1+exp(-(a·(−score)+b)))", "a": float(cal.coef_[0][0]), "b": float(cal.intercept_[0])},
               "학습": {"문턱·확률": "2023-01-01 ~ 2024-12-31 학습 → 2025 휴일·주말 예측",
                      "최종": "2023-01-01 ~ 2025-12-31 (고정, 2026 예측에 사용)"},
-              "문턱 규칙": "주의 = 2025 휴일·주말 급락 90% 포착, 경보 = 정밀도 50%·적중 3일 이상 중 가장 느슨",
+              "문턱 규칙": "주의 = 2025 휴일·주말 급락 90% 포착, 경보 = 정밀도 50%·적중 3일 이상 중 가장 느슨 "
+                       "(없으면 적중 3일 이상 중 정밀도 최고, 같으면 가장 느슨)",
+              "경보 문턱 적용": how,
               "선택 절차": "현재 운영 구성 유지 (PLAN.md 결정 기록 2026-10-26). team_select.py·ens8.py 후보는 비교용",
-              "2023 결측": "날씨 예보(2023-12~)·주간전망(2023-12~)은 학습 구간 중앙값 (Ridge·RF), EBM은 빈칸 그대로",
+              "2023 자료": "단기 육상예보 2023-01부터 수집(빈 날 1/1), 주간전망 2022-12 게시분부터. 남은 빈칸은 학습 구간 중앙값 (Ridge·RF), EBM은 빈칸 그대로",
               "급락 정의": "11~15시 최저 SMP 30원 미만, 휴일·주말만 채점"}
     (OUT_TAB / f"drop_choice_{REGION}.json").write_text(json.dumps(choice, ensure_ascii=False, indent=1), encoding="utf-8")
 

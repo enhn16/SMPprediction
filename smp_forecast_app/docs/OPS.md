@@ -4,7 +4,7 @@
 | 예측 | 모델 | 학습 |
 |---|---|---|
 | 일주일 (1~7일 뒤, 시간별) | **Chronos-2 small** 중앙값 (휴무일 공변량) **+ 0.5 × 잔차 보정**(외부 정보 LightGBM, H별), 범위 = Chronos-2 분위수 (D+1은 90일 보정) | Chronos는 학습 없음. 잔차 보정은 매주 일요일 재학습 (약 20초, 모델 없으면 매일 실행 때 학습) |
-| 한 달 (7~34일 뒤, 일별 4지표) | 기준(같은 유형일 4일 평균) + λ × (LSTM·GRU 평균 − 기준), 범위 = 주차×휴무일 오차 분위수 | 매주 일요일 LSTM·GRU 재학습 (약 35분) |
+| 한 달 (7~34일 뒤, 일별 4지표) | **R3 mx v2** (2026-10-27 교체): Chronos 3종 × 0.75 + LSTM·GRU × 0.25, 저녁은 9개 모델 지평별 가중. `mx_ops.monthly([기준일], hist=daily_log)`, 범위 `MX_choice_v2.json` (docs/MONTH.md) | 매주 일요일 `mx_ops.train()` 약 5분 (이전 LSTM·GRU 35분 대체) |
 | 내일 급락 경보 | R1 산출 `ops_drop.predict` (Ridge+EBM+랜덤포레스트, 문턱·확률식 `drop_classifier/outputs/tables/drop_choice_육지.json`, 등급 없음/주의/경보) | 대상일 전년도 말까지 고정 학습 (2026 대상 → 2023~2025), 하루 약 19초 (2026-10-26 교체) |
 - 첫 운영 실행 2026-10-22: 학습 34분 + 매일 예측 약 3분. 실행 기록 `ops/run_log.txt`
 - 예약 작업 등록 2026-10-22 23시 (첫 실행: 10/23 15:30 daily). 실행 방식: `wscript.exe //B ops\run_hidden.vbs ops_{daily|actuals|train}.bat` — 창 없이 실행하고 종료코드를 돌려줌 (2026-10-25 변경. 이전 `powershell -WindowStyle Hidden`은 로그온·절전 해제 때 콘솔 창이 보였음)

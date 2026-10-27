@@ -8,7 +8,7 @@
   설명
 계통: 육지 = forecast_data.js(window.SMP_DATA), 제주 = forecast_data_jeju.js(window.SMP_JEJU, 같은 구조 + 제주 참고 문서 jdocs).
       웹은 제주를 고를 때만 제주 파일을 읽음 (왼쪽 메뉴 전환)
-입력: WZ_predictions_hourly.csv(일주일, wz_ens) · MZ_predictions_daily.csv(한 달, mz_ens — 없으면 M_predictions_daily.csv)
+입력: WZ_predictions_hourly.csv(일주일, wz_ens) · mx/MX_predictions_daily_v2.csv(한 달, R3 mx v2)
       ops 운영 기록(있으면 같은 대상 덮어씀) · 급락 = drop_classifier/outputs/tables/drop_육지_15h.csv(R1) / ops drop_log.csv
       제주: jeju/JWZ_predictions_hourly.csv · JMZ_predictions_daily.csv · drop_badge_제주.csv + jeju/ops/{jwz,jdaily,jdrop}_log.csv
 실행: python -m smp_forecast_app.src.export_web
@@ -72,7 +72,7 @@ def _json(name):
 
 # 계통별 입력 (제주는 제주 채팅 결과 파일 + 제주 운영 기록, docs/JEJU.md 1절)
 SRC = {
-    "육지": {"hourly": DATA / "WZ_predictions_hourly.csv", "daily": DATA / "MZ_predictions_daily.csv", "drop": ROOT / "drop_classifier" / "outputs" / "tables" / "drop_육지_15h.csv",   # R1 산출 (2026-10-26 교체)
+    "육지": {"hourly": DATA / "WZ_predictions_hourly.csv", "daily": DATA / "mx" / "MX_predictions_daily_v2.csv", "drop": ROOT / "drop_classifier" / "outputs" / "tables" / "drop_육지_15h.csv",   # R1 산출 (2026-10-26 교체)
              "ops": OPS, "logs": ("hourly_log.csv", "daily_log.csv", "drop_log.csv")},
     "제주": {"hourly": JDIR / "JWZ_predictions_hourly.csv", "daily": JDIR / "JMZ_predictions_daily.csv", "drop": JDIR / "drop_badge_제주.csv",
              "ops": JDIR / "ops", "logs": ("jwz_log.csv", "jdaily_log.csv", "jdrop_log.csv")},
@@ -199,8 +199,9 @@ def main():
     perf = {
         "week": {"models": _table("WZ1_models.csv"), "ens": _table("WZ2_ensembles_2025H2.csv"), "test": _table("WZ3_test2026.csv"),
                  "choice": _json("WZ_choice.json")},
-        "month": {"models": _table("MZ1_models.csv"), "ens": _table("MZ2_ensembles_2025H2.csv"), "test": _table("MZ3_test2026.csv"),
-                  "choice": _json("MZ_choice.json")},
+        # 한 달 = R3 mx v2 (2026-10-27 교체, docs/MONTH.md)
+        "month": {"models": _table("MX1_models_v2.csv"), "ens": _table("MX2_ensembles_2025_v2.csv"), "test": _table("MX4_test2026_v2.csv"),
+                  "choice": _json("MX_choice_v2.json")},
         "dropCal": drop_cal("육지"), "dropChoice": _json_at(LAND_DROP_CHOICE),
     }
     t1 = ROOT / "drop_classifier" / "outputs" / "tables"

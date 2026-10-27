@@ -1,6 +1,6 @@
 """운영(매일 예측) — 작업 스케줄러가 호출. 웹앱 모델(2026-10-22 선택)을 그대로 쓴다.
 
-  python -m smp_forecast_app.src.ops train    매주 일요일: 일주일 잔차 보정(LightGBM)·한 달 LSTM·GRU 재학습·저장
+  python -m smp_forecast_app.src.ops train    매주 일요일: 일주일 잔차 보정(LightGBM)·한 달 mx v2(표 모델·LSTM·GRU) 재학습·저장
   python -m smp_forecast_app.src.ops daily    매일 15:30(+로그온·절전 해제·매시 재시도): 수집 → 밀린 기준일까지 예측(육지 → 제주) → 기록 → 웹 → 푸시
                                               15:30 전에는 어제 기준일까지만 산출, 산출할 것이 없으면 바로 끝남
   python -m smp_forecast_app.src.ops actuals  매일 21:30: 공표 SMP 수집 → 웹 → 푸시
@@ -8,7 +8,7 @@
 모델 (선택 근거: docs/01_결과.md 10~11절, outputs/tables/WZ_choice.json·MZ_choice.json)
   일주일 (1~7일 뒤, 시간별): Chronos-2 small 중앙값 + λ × 잔차 보정(외부 정보 LightGBM, wz_resid). 범위 = WZ_choice의 지평별 방법
         (Chronos-2 분위수 그대로 / 보정 분위수 회귀(Chronos-2 분위수, 90일 갱신, 시간대묶음×휴무일))
-  한 달 (7~34일 뒤, 일별 4개 지표): 기준(최근 같은 유형일 4일 평균) + λ × (LSTM·GRU 평균 − 기준), λ·범위는 MZ_choice
+  한 달 (7~34일 뒤, 일별 4개 지표): R3 mx v2 — Chronos 3종·LSTM·GRU·표 모델 조합 (mx_ops, docs/MONTH.md, MX_choice_v2.json)
   내일 급락 경보: R1 산출 ops_drop.predict (Ridge+EBM+랜덤포레스트, 2023~전년도 말 고정 학습, drop_choice_육지.json 문턱·확률)
 판단 시각 규칙: 기준일 I의 예측은 I일 15시에 알 수 있는 값만 (I일 SMP는 I-1일 저녁 공표). 늦게 켜져도 같은 값,
   실제 산출 시각(run_at)을 기록. 밀린 기준일은 최대 14일까지 따라잡음.
@@ -31,11 +31,8 @@ import pandas as pd
 from common.config import PROCESSED_DIR, ROOT, SEED
 from common.loaders import load_smp_actual
 from smp_forecast_app.src import export_web, features_daily
-from smp_forecast_app.src.features_daily import STATS, load_daily
 from smp_forecast_app.src.intervals import add_keys
 from smp_forecast_app.src.model import cqr
-from smp_forecast_app.src.mz_ens import INTV
-from smp_forecast_app.src.model_monthly import interval as m_interval
 
 DATA = PROCESSED_DIR / "smp_forecast_app"
 OPS = DATA / "ops"
@@ -116,19 +113,13 @@ def train_resid():
 
 
 def train():
-    import torch
-    from smp_forecast_app.src.mz import seq_data, seq_fit
+    """매주 일요일: 일주일 잔차 보정 + 한 달 예측(mx v2: 표 모델·LSTM·GRU, 약 5분) + 제주."""
+    from smp_forecast_app.src import mx_ops
     train_resid()
     t0 = time.time()
-    log("학습 시작 (한 달 LSTM·GRU)")
-    Xp, Xf, Y, L, B = seq_data()
-    today = pd.Timestamp.today().normalize()
-    tr = np.where(B + pd.Timedelta(days=34) < today)[0]       # 목표 28일이 모두 공표된 기준일만
-    states = {kind: [seq_fit(kind, Xp, Xf, Y, tr, SEED + sd).state_dict() for sd in range(3)] for kind in ("lstm", "gru")}
-    MODELS.mkdir(parents=True, exist_ok=True)
-    torch.save({"states": states, "nf": Xf.shape[2], "trained_at": datetime.now().isoformat(timespec="minutes"),
-                "last_base": str(B[tr].max().date())}, MODELS / "mz_seq.pt")
-    log(f"학습 완료 → {MODELS / 'mz_seq.pt'} (기준일 ~{B[tr].max().date()}, {time.time()-t0:.0f}s)")
+    log("학습 시작 (한 달 mx v2)")
+    mx_ops.train()
+    log(f"한 달 학습 완료 ({time.time()-t0:.0f}s)")
     try:
         from smp_forecast_app.src import jz_ops
         jz_ops.train()   # 제주 잔차 보정(H별) + 급락 고정 모델
@@ -239,63 +230,17 @@ def weekly(bases, run_at):
             ["base_date", "H", "date", "hour"])
 
 
-def _lambda(pick):
-    """MZ_choice 점예측 이름 → (λ, 보정 모델 종류). 지원: '기준 ... 그대로', '기준 + λ × (시계열 신경망 평균 − 기준)'."""
-    if pick.endswith("그대로"):
-        return 0.0, None
-    m = re.match(r"기준 \+ ([0-9.]+) × \((.+) − 기준\)", pick)
-    if m and m.group(2) == "시계열 신경망 평균":
-        return float(m.group(1)), "seq"
-    log(f"한 달 운영 미지원 구성 '{pick}' → 기준값으로 대체")
-    return 0.0, None
-
-
 def monthly(bases, run_at):
-    import torch
-    from smp_forecast_app.src.mz import seq_data, seq_net, seq_predict
-    ch = json.loads((TAB / "MZ_choice.json").read_text(encoding="utf-8"))["지표별"]
-    dd = load_daily()
-    new = dd[dd["base_date"].isin(bases)][["base_date", "H", "date", "day_type", "offday"] + [f"{s}_same4" for s in STATS]].copy()
-    if new.empty:
+    """한 달 예측 = R3 mx v2 (2026-10-27 교체, docs/MONTH.md 0·4절). 지난 운영 기록(daily_log)을 범위 이력으로 넘김."""
+    from smp_forecast_app.src import mx_ops
+    hist = _read("daily_log.csv", parse_dates=["base_date", "date"])
+    r = mx_ops.monthly(bases, hist=hist if len(hist) else None)
+    if r is None or r.empty:
         return
-    ck = torch.load(MODELS / "mz_seq.pt", weights_only=False)
-    models = []
-    for kind in ("lstm", "gru"):
-        for st in ck["states"][kind]:
-            m = seq_net(kind, ck["nf"])
-            m.load_state_dict(st)
-            m.eval()
-            models.append(m)
-    Xp, Xf, Y, L, B = seq_data()
-    idx = [int(np.where(B == I)[0][0]) for I in bases if (B == I).any()]
-    sp = seq_predict(models, Xp, Xf, np.array(idx)) * L[idx, None, None]
-    seq = pd.DataFrame([{"base_date": B[i], "H": h + 7, **{f"seq_{s}": float(sp[j, h, k]) for k, s in enumerate(STATS)}}
-                        for j, i in enumerate(idx) for h in range(28)])
-    new = new.merge(seq, on=["base_date", "H"], how="left")
-    hist = pd.read_csv(DATA / "MZ_predictions_daily.csv", parse_dates=["base_date", "date"])
-    ol = _read("daily_log.csv", parse_dates=["base_date", "date"])
-    if len(ol):
-        hist = pd.concat([hist, ol]).drop_duplicates(["base_date", "H"], keep="last")
-    hist = hist[~hist["base_date"].isin(bases)]
-    ys = dd.set_index(["base_date", "H"])[[f"y_{s}" for s in STATS]]
-    hist = hist.drop(columns=[f"y_{s}" for s in STATS], errors="ignore").join(ys, on=["base_date", "H"])
-    out = new[["base_date", "H", "date", "day_type", "offday"]].copy()
-    for s in STATS:
-        lam, kind = _lambda(ch[s]["점예측"])
-        base = new[f"{s}_same4"]
-        out[f"pred_{s}"] = base + lam * (new[f"seq_{s}"] - base) if kind == "seq" else base
-        out[f"y_{s}"] = np.nan
-    allm = pd.concat([hist, out], ignore_index=True)
-    mask = allm["base_date"].isin(bases).values
-    for s in STATS:
-        w, form = INTV[ch[s]["범위"]]
-        lo, hi = m_interval(allm, mask, s, f"pred_{s}", w, form)
-        allm.loc[mask, f"lo_{s}"], allm.loc[mask, f"hi_{s}"] = lo, hi
-    r = allm[mask].assign(run_at=run_at)
+    r = r.assign(run_at=run_at)
     for c in ("base_date", "date"):
         r[c] = pd.to_datetime(r[c]).dt.strftime("%Y-%m-%d")
-    keep = ["run_at", "base_date", "H", "date", "day_type", "offday"] + [f"{p}_{s}" for s in STATS for p in ("pred", "lo", "hi")]
-    _append("daily_log.csv", r[keep].round(3), ["base_date", "H"])
+    _append("daily_log.csv", r[["run_at"] + [c for c in r.columns if c != "run_at"]].round(3), ["base_date", "H"])
 
 
 def drops(bases, run_at):
@@ -401,8 +346,6 @@ def daily():
         run(["common.collect.epsis_capacity"])
     if today.month == 12:
         run(["common.collect.holidays", str(today.year), str(today.year + 1)])
-    if not (MODELS / "mz_seq.pt").exists():
-        train()
     features_daily.main()
     last_act = load_smp_actual("육지")["date"].max()
     done = _read("hourly_log.csv", parse_dates=["base_date"])
