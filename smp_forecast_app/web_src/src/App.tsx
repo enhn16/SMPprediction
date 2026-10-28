@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { D, HAS_JEJU, REGION, loadJeju, setRegion, type Region } from './data'
 import { dayDiff, lab, toIso } from './fmt'
+import { JEJU } from './theme'
 import { Week } from './pages/Week'
 import { Month } from './pages/Month'
 import { Flow } from './pages/Flow'
@@ -23,7 +24,7 @@ function parse(): { r: Route; doc: DocPage } {
 }
 
 // 제주를 보고 있을 때 한눈에 구분되도록 로고·계통 이름을 주황으로
-const JEJU_ORANGE = '#f07c1e', JEJU_ORANGE_SOFT = '#ffb36b'
+const JEJU_ORANGE = JEJU.main, JEJU_ORANGE_SOFT = JEJU.soft
 
 function Icon({ d }: { d: string }) {
   return <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
@@ -50,7 +51,7 @@ function StaleBanner() {
   const late = dayDiff(base, due)
   if (late <= 0) return null
   return (
-    <div className="mb-5 rounded-lg border border-[#f2c200] bg-[#fdf6d8] px-4 py-3 text-[13.5px] text-[#6b5300]">
+    <div className="mb-6 rounded-panel bg-warn-soft px-5 py-3.5 text-[13.5px] text-warn-ink">
       <b>예측이 {late}일 늦어지고 있습니다.</b> 마지막 기준일 {lab(base)}, 지금쯤 있어야 할 기준일 {lab(due)}.
       운영 PC가 켜지면 밀린 날을 자동으로 따라잡습니다 (마지막 산출 {D.lastRun ?? '-'}).
     </div>
@@ -85,33 +86,32 @@ export default function App() {
     <nav className="flex h-full flex-col">
       <div className="px-5 pb-5 pt-6">
         <div className="flex items-center gap-2.5">
-          <span className={`grid h-9 w-9 place-items-center rounded-lg text-[13px] font-extrabold text-white ${region === '제주' ? '' : 'bg-brand'}`}
+          <span className={`grid h-9 w-9 place-items-center rounded-ui text-[12.5px] font-bold text-white ${region === '제주' ? '' : 'bg-brand'}`}
             style={region === '제주' ? { background: JEJU_ORANGE } : undefined}>SMP</span>
           <div>
-            <div className="text-[16px] font-extrabold leading-tight text-white">SMP 예측</div>
-            <div className="text-[11.5px]" style={{ color: region === '제주' ? JEJU_ORANGE_SOFT : '#9fc7e6' }}>{region} 계통한계가격</div>
+            <div className="text-[16px] font-bold leading-tight tracking-[-0.01em] text-white">SMP 예측</div>
+            <div className="text-[11.5px]" style={{ color: region === '제주' ? JEJU_ORANGE_SOFT : 'rgba(255,255,255,0.7)' }}>{region} 계통한계가격</div>
           </div>
         </div>
         {HAS_JEJU && (
-          <div className="mt-4 grid grid-cols-2 gap-1 rounded-lg bg-white/10 p-1" role="group" aria-label="계통 선택">
+          <div className="mt-5 grid grid-cols-2 gap-0.5 rounded-ui bg-white/[0.07] p-[3px]" role="group" aria-label="계통 선택">
             {(['육지', '제주'] as Region[]).map((r) => (
               <button key={r} onClick={() => { pick(r); setMenu(false) }} aria-pressed={region === r} disabled={loading}
-                className={`rounded-md py-1.5 text-[13px] font-bold transition ${region === r ? 'bg-white text-brand-dark shadow-sm' : 'text-[#d5e6f3] hover:bg-white/10'}`}>
+                className={`h-[30px] rounded-[4px] text-[13px] font-semibold transition ${region === r ? 'bg-brand text-white' : 'text-white/70 hover:text-white'}`}>
                 {r === '제주' && loading ? '읽는 중…' : r}</button>
             ))}
           </div>
         )}
       </div>
-      <div className="flex-1 space-y-1 px-3">
-        {NAV.map((g, gi) => (
+      <div className="flex-1 space-y-6 px-3 pt-1">
+        {NAV.map((g) => (
           <div key={g.group}>
-            {gi > 0 && <div className="mx-2 my-3 border-t border-white/10" />}
-            <div className="px-3 pb-1.5 text-[11px] font-semibold tracking-wider text-[#7fa9c8]">{g.group}</div>
+            <div className="px-3 pb-2 text-[11.5px] font-medium text-white/45">{g.group}</div>
             {g.items.map((it) => {
               const on = st.r === it.r
               return (
                 <button key={it.r} onClick={() => go(it.r)}
-                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[14px] font-semibold transition ${on ? 'bg-white text-brand-dark shadow-sm' : 'text-[#d5e6f3] hover:bg-white/10 hover:text-white'}`}>
+                  className={`mb-0.5 flex w-full items-center gap-3 rounded-ui px-3 py-2.5 text-left text-[14px] font-medium transition ${on ? 'bg-brand font-semibold text-white' : 'text-white/75 hover:bg-white/[0.07] hover:text-white'}`}>
                   <Icon d={it.icon} />{it.t}
                 </button>
               )
@@ -119,9 +119,9 @@ export default function App() {
           </div>
         ))}
       </div>
-      <div className="space-y-1 border-t border-white/10 px-5 py-4 text-[11.5px] leading-5 text-[#9fc7e6]">
-        <div>최신 공표 <b className="text-white">{lab(D.lastPublished)}</b></div>
-        {D.lastRun && <div>예측 산출 <b className="text-white">{D.lastRun}</b></div>}
+      <div className="space-y-1 px-6 pb-6 pt-4 text-[11.5px] leading-5 text-white/55">
+        <div>최신 공표 <b className="font-semibold text-white/90">{lab(D.lastPublished)}</b></div>
+        {D.lastRun && <div>예측 산출 <b className="font-semibold text-white/90">{D.lastRun}</b></div>}
         <div>데이터 생성 {D.generated}</div>
       </div>
     </nav>
@@ -132,8 +132,8 @@ export default function App() {
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-[232px] bg-brand-ink lg:block">{side}</aside>
       {/* 모바일 상단 바 */}
       <header className="sticky top-0 z-20 flex h-14 items-center justify-between bg-brand-ink px-4 lg:hidden">
-        <span className="text-[16px] font-extrabold text-white">SMP 예측 <span className="text-[13px] font-semibold" style={{ color: region === '제주' ? JEJU_ORANGE_SOFT : '#9fc7e6' }}>· {region}</span></span>
-        <button onClick={() => setMenu(!menu)} className="rounded-lg p-2 text-white hover:bg-white/10" aria-label="메뉴">
+        <span className="text-[16px] font-extrabold text-white">SMP 예측 <span className="text-[13px] font-semibold" style={{ color: region === '제주' ? JEJU_ORANGE_SOFT : 'rgba(255,255,255,0.7)' }}>· {region}</span></span>
+        <button onClick={() => setMenu(!menu)} className="rounded-ui p-2 text-white hover:bg-white/10" aria-label="메뉴">
           <Icon d={menu ? 'M6 6l12 12M18 6L6 18' : 'M4 7h16M4 12h16M4 17h16'} />
         </button>
       </header>
@@ -143,7 +143,7 @@ export default function App() {
           <aside className="absolute inset-y-0 left-0 w-[260px] bg-brand-ink" onClick={(e) => e.stopPropagation()}>{side}</aside>
         </div>
       )}
-      <main className="px-4 py-6 lg:ml-[232px] lg:px-8 lg:py-8">
+      <main className="px-4 py-6 lg:ml-[232px] lg:px-10 lg:py-9">
         <div key={region} className="mx-auto max-w-[1240px]">
           {st.r !== 'docs' && <StaleBanner />}
           {st.r === 'week' && <Week />}
@@ -151,7 +151,7 @@ export default function App() {
           {st.r === 'flow' && <Flow />}
           {st.r === 'docs' && <Docs page={st.doc} onPage={(p) => go('docs', p)} />}
           {st.r === 'help' && <Help go={go} />}
-          <footer className="mt-10 border-t border-line pt-4 text-[12px] text-mute">
+          <footer className="mt-12 text-[12px] text-mute">
             출처: 전력거래소·기상청·한국천문연구원·EPSIS 공공데이터 · 숙명여대 P4 산학 프로젝트 (한국중부발전 동반성장부)
           </footer>
         </div>

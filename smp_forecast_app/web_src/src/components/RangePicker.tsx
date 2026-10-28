@@ -40,25 +40,25 @@ export function RangePicker({ from, to, min, max, maxDays = 14, onChange }: {
   const selected = { from: fromIso(start ?? from), to: shownTo ? fromIso(shownTo) : undefined }
   const quick = (k: number) => { onChange(addDays(max, -k + 1), max); close() }
 
-  const boxCls = (on: boolean) => `flex min-w-[150px] flex-1 flex-col rounded-lg border bg-white px-3.5 py-2 text-left transition ${on ? 'border-brand ring-2 ring-brand/20' : 'border-line hover:border-brand/60'}`
+  const boxCls = (on: boolean) => `flex min-w-[132px] flex-1 flex-col rounded-ui px-3.5 py-1.5 text-left transition ${on ? 'bg-brand-soft ring-1 ring-brand' : 'bg-track hover:bg-brand-soft'}`
   return (
     <div ref={box} className="relative">
       <div className="flex items-center gap-2">
         <button className={boxCls(open && !start)} onClick={() => openAt('from')}>
-          <span className="text-[11px] font-medium text-mute">시작일</span>
-          <span className="text-[15px] font-bold text-brand-dark">{lab(start ?? from)}</span>
+          <span className="text-[11px] font-medium text-sub">시작일</span>
+          <span className="text-[15px] font-bold text-ink tabular-nums">{lab(start ?? from)}</span>
         </button>
         <span className="text-mute">→</span>
         <button className={boxCls(open && !!start)} onClick={() => openAt('to')}>
-          <span className="text-[11px] font-medium text-mute">종료일</span>
-          <span className="text-[15px] font-bold text-brand-dark">{start ? (shownTo ? lab(shownTo) : '선택') : lab(to)}</span>
+          <span className="text-[11px] font-medium text-sub">종료일</span>
+          <span className="text-[15px] font-bold text-ink tabular-nums">{start ? (shownTo ? lab(shownTo) : '선택') : lab(to)}</span>
         </button>
-        <span className="hidden whitespace-nowrap rounded-full bg-brand-soft px-2.5 py-1 text-[12px] font-semibold text-brand-dark sm:inline">
+        <span className="hidden whitespace-nowrap rounded-[4px] bg-brand-soft px-2 py-0.5 text-[12px] font-semibold text-brand-dark tabular-nums sm:inline">
           {dayDiff(start ?? from, shownTo ?? (start ? start : to)) + 1}일
         </span>
       </div>
       {open && (
-        <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-max max-w-[calc(100vw-32px)] rounded-xl border border-line bg-white p-4 shadow-[0_12px_32px_rgba(11,42,66,0.18)]">
+        <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-max max-w-[calc(100vw-32px)] rounded-panel border border-line bg-surface p-4 shadow-[0_10px_28px_rgba(0,56,91,0.12)]">
           <div className="mb-1 flex items-center justify-between gap-3">
             <span className="text-[13px] text-sub">{start ? <><b className="text-brand-dark">종료일</b>을 고르세요 · 최대 {maxDays}일</> : <><b className="text-brand-dark">시작일</b>을 고르세요</>}</span>
           </div>
@@ -78,10 +78,10 @@ export function RangePicker({ from, to, min, max, maxDays = 14, onChange }: {
             modifiers={{ off: (d: Date) => info(toIso(d)).off || d.getDay() === 0 }}
             modifiersClassNames={{ off: 'day-off' }}
           />
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 pt-3">
             <div className="flex gap-1.5">
               {[7, 14].map((k) => (
-                <button key={k} onClick={() => quick(k)} className="rounded-lg border border-line px-3 py-1.5 text-[12.5px] font-semibold text-sub hover:border-brand hover:text-brand-dark">
+                <button key={k} onClick={() => quick(k)} className="btn">
                   최근 {k === 7 ? '1주' : '2주'}
                 </button>
               ))}

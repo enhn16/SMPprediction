@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { D, REGION, STAT_NAME, T_STRONG, T_WARN, type Row, type Stat } from '../data'
 import { fmt, pct, sgn } from '../fmt'
-import { Card, Kpis, PageHeader, Seg, Table, type Col } from '../components/ui'
+import { Kpis, PageHeader, Seg, Table, type Col } from '../components/ui'
 
 export type DocPage = 'ov' | 'drop' | 'wk' | 'mo'
 // 등급 표시 이름: 데이터 값 '강한 경보'를 현업 표현 '경보'로 (2026-10-26)
@@ -19,8 +19,17 @@ const METCOLS: Col[] = [{ k: '구분', t: '구분', l: true }, { k: '표본수',
 const metRows = (pred: string, per: string, keep?: (s: string) => boolean) => MET.filter((r) => r['예측'] === pred && String(r['기간']).startsWith(per) && (!keep || keep(r['구분'])))
 const tone = (v: any) => (v == null ? undefined : v >= 0.75 && v <= 0.85 ? 'good' : 'bad') as 'good' | 'bad' | undefined
 
+/** 문서 소주제: 카드 대신 한 장의 명세서 안에서 구분선으로 나눔 */
 function Sec({ title, sub, children }: { title: string; sub?: ReactNode; children: ReactNode }) {
-  return <Card title={title} sub={sub}><div className="prose-doc space-y-3">{children}</div></Card>
+  return (
+    <section className="doc-sec">
+      <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+        <h2 className="text-[17px] font-semibold leading-tight tracking-[-0.01em] text-ink">{title}</h2>
+        {sub && <span className="muted">{sub}</span>}
+      </div>
+      <div className="prose-doc space-y-3">{children}</div>
+    </section>
+  )
 }
 function DataTable({ rows }: { rows: string[][] }) {
   return <Table rows={rows.map(([a, b, c]) => ({ a, b, c }))} cols={[{ k: 'a', t: '자료', l: true, w: true }, { k: 'b', t: '쓰는 방식', l: true, w: true }, { k: 'c', t: '확보 시점 (판단: 기준일 15시)', l: true, w: true }]} />
@@ -77,8 +86,8 @@ function TeamSec({ t, region }: { t?: Row; region: string }) {
       ]} />
       <Table rows={drop} csv={`${region}_팀비교_급락`} cols={[{ k: '구분', t: '실전 (2025로 정한 문턱)', l: true }, { k: '적중', t: '적중' }, { k: '놓침', t: '놓침' }, { k: '헛경보', t: '헛경보' },
         { k: '재현율', t: '재현율', f: (v) => pct(v, 0) }, { k: '정밀도', t: '정밀도', f: (v) => pct(v, 0) }]} />
-      <p className="!text-[13px] font-semibold">가격 예측 (전체 시간)</p>
-      <Table rows={rows} csv={`${region}_팀비교_가격`} cols={[{ k: '예측', t: '예측', l: true }, ...METCOLS.slice(1)]} />
+      
+      <Table caption={<>가격 예측 (전체 시간)</>} rows={rows} csv={`${region}_팀비교_가격`} cols={[{ k: '예측', t: '예측', l: true }, ...METCOLS.slice(1)]} />
       <p className="!text-[12.5px] !text-mute">PR-AUC·헛경보@재현율은 시험 기간 안에서 문턱을 맞춘 값(순위 비교용), '실전'은 미리 정한 문턱의 성적입니다. 95% 구간은 날짜 부트스트랩 — 급락일이 적어 몇 일 차이는 우연일 수 있습니다. 현재 모델의 학습 기간은 팀 규칙(2023~)과 다를 수 있습니다.</p>
     </Sec>
   )
@@ -89,7 +98,7 @@ function RangeAdjSec({ ra, region }: { ra?: Row; region: string }) {
   const ch: Row = ra?.choice?.[region] ?? {}
   const t: Row[] = (ra?.test ?? []).filter((r: Row) => r['계통'] === region)
   return (
-    <Sec title="80% 범위 보정: 휴일·주말 한낮" sub="2026-10-27 · 2025 하반기로 선택 → 2026-01-01 ~ 10-18 한 번 채점">
+    <Sec title="80% 범위 보정: 휴일·주말 한낮" sub="2026-10-27 · 2025 하반기로 선택 → 2026-01-01 ~ 10-18 채점">
       <p>일주일 범위는 휴일·주말 한낮의 급락을 잘 담지 못해 하한 아래로 벗어나는 경우가 많았습니다. 점예측은 그대로 두고, <b>휴일·주말 11~15시의 하한만</b> 엽니다.</p>
       <ul>
         <li><b>내일(D+1)</b>: 내일 급락 경보에 따라 — {ch['D+1'] ?? '-'}</li>
@@ -146,8 +155,8 @@ function Overview() {
         <ul>
           <li><b>판단 시각 = 기준일 15시</b> (현업 주간 예측과 같음). 대상일 하루전 수요예측·SMP는 저녁 공표라 쓰지 않습니다.</li>
           <li><b>시간 순서만</b>: 매월 1일 재학습하며 그 전까지의 자료로만 학습 (랜덤 분할 없음). 2025~2026 모든 예측이 '그 시점에 낼 수 있었던 예측'입니다.</li>
-          <li><b>선택</b>: 2025 상반기로 순위·가중치·보정 강도를 맞추고 → 2025 하반기 성적으로 비교 (0.05원 이내면 단순한 쪽) → 2025 전체로 다시 맞춤. 급락 경보은 2025 교차검증(급락 90%를 잡을 때 헛경보 수).</li>
-          <li><b>시험</b>: 2026-01-01 이후 한 번 채점. 모델을 바꿔 다시 채점한 경우 '2차·3차 시험'으로 표기합니다 (일주일 3차, 한 달 3차).</li>
+          <li><b>선택</b>: 2025 상반기로 순위·가중치·보정 강도를 맞추고 → 2025 하반기 성적으로 비교 (0.05원 이내면 단순한 쪽) → 2025 전체로 다시 맞춤. 급락 경보는 2025 교차검증(급락 90%를 잡을 때 헛경보 수).</li>
+          <li><b>시험</b>: 2026-01-01 이후 성적으로 채점합니다. 모델 선택에는 2026을 쓰지 않습니다.</li>
         </ul>
       </Sec>
       <Sec title="쓰지 않은 정보"><NotUsed /></Sec>
@@ -266,18 +275,17 @@ function WeekDoc() {
       </Sec>
       <RangeAdjSec ra={(D.docs as any)?.rangeAdj} region="육지" />
       <Sec title="사용 데이터"><DataTable rows={DATA_HOURLY} /><p className="!text-[13px] font-semibold">쓰지 않은 정보</p><NotUsed /></Sec>
-      <Sec title="2026 시험 성적표 (일주일 3차 시험)" sub={testRange}>
-        <Table rows={metRows('일주일', '2026', (s) => !s.startsWith('D+'))} csv="육지_일주일_2026_구간별" cols={METCOLS} />
-        <p className="!text-[13px] font-semibold">며칠 뒤별</p>
-        <Table rows={metRows('일주일', '2026', (s) => s.startsWith('D+'))} csv="육지_일주일_2026_지평별" cols={METCOLS} />
-        <p className="!text-[13px] font-semibold">2025 하반기 (선택 구간)</p>
-        <Table rows={metRows('일주일', '2025', (s) => !s.startsWith('D+'))} csv="육지_일주일_2025하반기" cols={METCOLS} />
+      <Sec title="2026 시험 성적표" sub={testRange}>
+        <Table caption={<>구간별</>} rows={metRows('일주일', '2026', (s) => !s.startsWith('D+'))} csv="육지_일주일_2026_구간별" cols={METCOLS} />
+        
+        <Table caption={<>며칠 뒤별</>} rows={metRows('일주일', '2026', (s) => s.startsWith('D+'))} csv="육지_일주일_2026_지평별" cols={METCOLS} />
+        
+        <Table caption={<>2025 하반기 (선택 구간)</>} rows={metRows('일주일', '2025', (s) => !s.startsWith('D+'))} csv="육지_일주일_2025하반기" cols={METCOLS} />
       </Sec>
       <Sec title="한계">
         <ul>
           <li>멀리 볼수록 상한 위 이탈이 늘어납니다 (D+7 약 15%) — 갑작스런 가격 상승을 범위가 늦게 따라갑니다.</li>
-          <li>휴무일 한낮·급락 시간은 오차가 큽니다. 급락은 내일 급락 경보을 함께 보세요.</li>
-          <li>'3차 시험'은 2026을 앞서 두 번 채점한 뒤의 결과라 1차 시험보다 낙관적일 수 있습니다.</li>
+          <li>휴무일 한낮·급락 시간은 오차가 큽니다. 급락은 내일 급락 경보를 함께 보세요.</li>
         </ul>
       </Sec>
     </>
@@ -309,11 +317,10 @@ function MonthDoc() {
           <li><b>학습</b>: 팀 규칙대로 대상일 2023~ (2023 연료비·중기·단기예보·주간전망 보강분 포함). 표 모델 매월, LSTM·GRU 분기 재학습. 운영은 매주 일요일 재학습(약 5분).</li>
         </ul>
       </Sec>
-      <Sec title="선택 이유" sub="2024로 가중치·λ → 2025 MAE로 선택 (0.05원 이내면 구성이 적은 쪽) → 2024~2025 재적합 → 2026 한 번 채점">
+      <Sec title="선택 이유" sub="2024로 가중치·λ → 2025 MAE로 선택 (0.05원 이내면 구성이 적은 쪽) → 2024~2025 재적합 → 2026 채점">
         <ul>
           <li>Chronos에 LSTM·GRU를 25% 섞으면 2025 상·하반기 모두 좋아져 일평균·한낮·한낮 최저에 채택, 저녁은 9개 모델 지평별 가중이 가장 좋았습니다.</li>
           <li>2026 시험에서 4지표 모두 이전 모델(같은 유형일 + LSTM·GRU)보다 좋았고, 저녁(−1.22원)·한낮 최저(−1.33원)는 95% 구간상 확실합니다. 한낮 최저는 단순 기준도 확실히 이겼습니다(−3.87원).</li>
-          <li>LSTM·GRU 후보는 이전 판(v1) 채점 뒤 2025에서 확인한 결과를 보고 넣었으므로 2026은 '한 달 5차 시험'으로 표기합니다.</li>
         </ul>
       </Sec>
       <Sec title="비교한 단일 모델" sub="2025년 MAE (원), 일평균 순">
@@ -323,12 +330,12 @@ function MonthDoc() {
         <Table rows={ens} sel={(r) => r['선택'] === '✓'} cols={[{ k: '지표', t: '지표', l: true }, { k: '후보', t: '후보', l: true, w: true }, { k: '구성 수', t: '모델 수' },
           { k: '2024(맞춤)', t: '2024 (맞춤)', f: n3 }, { k: '2025(선택)', t: '2025 (선택)', f: n3 }]} />
       </Sec>
-      <Sec title="2026 시험 성적표 (한 달 5차 시험)" sub="2026-01-01 ~ 10-18 · 이전 모델과 같은 날짜로 비교">
+      <Sec title="2026 시험 성적표" sub="2026-01-01 ~ 10-18 · 이전 모델과 같은 날짜로 비교">
         <Table rows={test} csv="육지_한달_v2_vs_이전" cols={[{ k: '지표', t: '지표', l: true }, { k: '새 MAE', t: '새 MAE', f: n2 }, { k: '현재 MAE', t: '이전 MAE', f: n2 },
           { k: 'MAE 차(새−현재)', t: '차 (새−이전)', f: (v) => sgn(v, 2) }, { k: '새 단순 기준 MAE', t: '단순 기준 MAE', f: n2 }, { k: '새 rMAE', t: 'rMAE', f: n3 },
           { k: '새 포함률', t: '새 포함률', f: (v) => pct(v) }, { k: '현재 포함률', t: '이전 포함률', f: (v) => pct(v) }, { k: '새 평균 폭', t: '새 평균 폭', f: (v) => fmt(v) }]} />
-        <p className="!text-[13px] font-semibold">표준 지표 (팀 비교표)</p>
-        <Table rows={tp} csv="육지_한달_2026_표준" cols={METCOLS} />
+        
+        <Table caption={<>표준 지표 (팀 비교표)</>} rows={tp} csv="육지_한달_2026_표준" cols={METCOLS} />
       </Sec>
       <Sec title="한계">
         <ul>
@@ -397,7 +404,7 @@ function JOverview() {
     <>
       <Sec title="최종 모델" sub="2026-10-25 확정">
         <p>모든 모델은 <b>기준일 15시에 알 수 있는 정보만</b> 쓰고, <b>2025년 성적만으로</b> 골랐습니다. 2026년은 고른 뒤 채점만 했고, 공식 성적은 팀 규칙대로 <b>{TEAM_PERIOD}</b>, 급락은 <b>휴일·주말만</b> 셉니다.</p>
-        <p>제주 SMP는 육지와 같은 가격인 시간이 2022년 31% → 2026년 91%(3분기 99%)라 <b>가격 예측은 육지 예측에서 출발</b>합니다. 대신 한낮 급락이 육지보다 3배 잦고(약 14%) 음수 가격이 있어, 급락 경보은 제주 전용 모델을 쓰고 범위 하한은 0원에서 자르지 않습니다.</p>
+        <p>제주 SMP는 육지와 같은 가격인 시간이 2022년 31% → 2026년 91%(3분기 99%)라 <b>가격 예측은 육지 예측에서 출발</b>합니다. 대신 한낮 급락이 육지보다 3배 잦고(약 14%) 음수 가격이 있어, 급락 경보는 제주 전용 모델을 쓰고 범위 하한은 0원에서 자르지 않습니다.</p>
         <Table rows={final.map((r, i) => ({ ...r, s: [tt.drop, tt.week, tt.month][i] }))} cols={[{ k: 'a', t: '예측', l: true }, { k: 'm', t: '최종 모델', l: true, w: true }, { k: 's', t: `2026 시험 성적 (${TEAM_PERIOD})`, l: true, w: true }]} />
       </Sec>
       <TeamSec t={JD().team} region="제주" />
@@ -407,7 +414,7 @@ function JOverview() {
           <li><b>판단 시각 = 기준일 15시</b>. 대상일 하루전 수요예측·SMP는 저녁 공표라 쓰지 않습니다.</li>
           <li><b>시간 순서만</b>: 잔차 보정은 매월 1일 재학습하며 그 전까지의 자료로만 학습 (랜덤 분할 없음).</li>
           <li><b>선택</b>: 일주일·한 달은 2025 상반기로 맞추고 2025 하반기로 비교 (0.05원 이내면 단순한 쪽). 급락은 2025 교차검증(급락 90%를 잡을 때 헛경보 수)에 안정성 기준을 더함.</li>
-          <li><b>시험</b>: 2026-01-01 ~ 10-23에 한 번 채점 (제주 1차 시험). 이후 2026 성적으로 모델을 바꾸지 않습니다.</li>
+          <li><b>시험</b>: 2026-01-01 ~ 10-23 성적으로 채점합니다. 모델 선택에는 2026을 쓰지 않습니다.</li>
         </ul>
       </Sec>
       <Sec title="쓰지 않은 정보">{J_NOT_USED}</Sec>
@@ -425,7 +432,7 @@ function JDrop() {
         { k: '헛경보 (주의 이상)', v: `${all['헛경보'] ?? '-'}일`, s: `정밀도 ${pct(all['정밀도'], 0)}` },
         { k: '재현율 (경보)', v: pct(st['재현율'], 0), s: `${st['적중'] ?? '-'}일 적중 · 헛경보 ${st['헛경보'] ?? '-'}일` },
         { k: 'ROC-AUC', v: n3(all['ROC-AUC']), s: `PR-AUC ${n3(all['PR-AUC'])}` },
-        { k: '시험 기간', v: `${all['일수'] ?? '-'}일`, s: `${JTEST} (제주 1회 채점)` },
+        { k: '시험 기간', v: `${all['일수'] ?? '-'}일`, s: JTEST },
       ]} />
       <Sec title="무엇을 판별하나">
         <p>기준일 15시에 <b>내일 한낮(11~15시) 제주 최저 SMP가 30원 미만으로 떨어질지</b>를 판별합니다. 제주는 급락이 잦고(2024년 20일, 2025년 60일, 2026년 54일), 육지가 급락한 날은 제주도 모두 급락했지만 <b>제주만 급락한 날</b>(평일·낮은 수요·맑음·강풍)이 훨씬 많습니다. 육지 예측의 한낮 최저만으로는 이런 날을 거의 못 가려(헛경보 265일) 제주 전용 모델을 만들었습니다. 웹에서는 가격 예측값은 그대로 두고 경보만 붙입니다.</p>
@@ -459,7 +466,7 @@ function JDrop() {
           ['제주 예측 (2)', '제주 Chronos-2 small의 내일 한낮 최저·하위 10%', '기준일 15시 계산'],
           ['제주 5분 계통 실적 (12)', '기준일 오전 풍력·한낮 태양광·수요·순부하·신재생 비중, 최근 7일 값', '기준일 14:25까지']]} />
       </Sec>
-      <Sec title="2026 시험 성적표" sub={`${JTEST}, 결정 후 1회 채점`}>
+      <Sec title="2026 시험 성적표" sub={JTEST}>
         <Table rows={dr} csv="제주_급락_2026" cols={DROPCOLS} />
         <p>휴무일 급락 30일 중 25일을 잡았지만 <b>평일 급락은 24일 중 14일</b>만 잡았습니다.</p>
       </Sec>
@@ -534,12 +541,12 @@ function JWeek() {
       </Sec>
       <RangeAdjSec ra={JD().rangeAdj} region="제주" />
       <Sec title="사용 데이터"><DataTable rows={J_DATA_HOURLY} /><p className="!text-[13px] font-semibold">쓰지 않은 정보</p>{J_NOT_USED}</Sec>
-      <Sec title="2026 시험 성적표 (제주 1차 시험)" sub={JTEST}>
-        <Table rows={jmetRows('일주일', '2026', (s) => !s.startsWith('D+'))} csv="제주_일주일_2026_구간별" cols={METCOLS} />
-        <p className="!text-[13px] font-semibold">며칠 뒤별</p>
-        <Table rows={jmetRows('일주일', '2026', (s) => s.startsWith('D+'))} csv="제주_일주일_2026_지평별" cols={METCOLS} />
-        <p className="!text-[13px] font-semibold">2025 하반기 (선택 구간)</p>
-        <Table rows={jmetRows('일주일', '2025', (s) => !s.startsWith('D+'))} csv="제주_일주일_2025하반기" cols={METCOLS} />
+      <Sec title="2026 시험 성적표" sub={JTEST}>
+        <Table caption={<>구간별</>} rows={jmetRows('일주일', '2026', (s) => !s.startsWith('D+'))} csv="제주_일주일_2026_구간별" cols={METCOLS} />
+        
+        <Table caption={<>며칠 뒤별</>} rows={jmetRows('일주일', '2026', (s) => s.startsWith('D+'))} csv="제주_일주일_2026_지평별" cols={METCOLS} />
+        
+        <Table caption={<>2025 하반기 (선택 구간)</>} rows={jmetRows('일주일', '2025', (s) => !s.startsWith('D+'))} csv="제주_일주일_2025하반기" cols={METCOLS} />
       </Sec>
       <Sec title="한계">
         <ul>
@@ -586,7 +593,7 @@ function JMonth() {
         <DataTable rows={[['육지 한 달 최종 예측 (일평균·한낮·저녁·한낮 최저)', '제주 예측의 출발점, 범위의 기준', '같은 기준일 15시 산출'],
           ['제주·육지 일별 SMP 지표', '최근 7·28·56일, 같은 유형일 8일의 제주−육지 차이', '기준일까지 공표분'], ['달력', '대상일 휴무 여부(같은 유형일 계산)', '사전 확정']]} />
       </Sec>
-      <Sec title="2026 시험 성적표 (제주 1차 시험)" sub={`${JTEST} · 기준 = 제주 최근 같은 유형일 4일 평균`}>
+      <Sec title="2026 시험 성적표" sub={`${JTEST} · 기준 = 제주 최근 같은 유형일 4일 평균`}>
         <Table rows={keys.map(jmon)} csv="제주_한달_2026_지표별" cols={[...METCOLS.filter((c) => !['RMSE', 'MAPE(20원 이상)', '편향(공표−예측)'].includes(c.k)),
           { k: '육지 그대로 MAE', t: '육지 그대로 MAE', f: n2 }]} />
         <p>주차별 일평균 MAE: 1주 뒤 약 9.7원 → 4주 뒤 약 15.1원 (포함률 80% → 76%).</p>
@@ -614,9 +621,9 @@ export function Docs({ page, onPage }: { page: DocPage; onPage: (p: DocPage) => 
   const P = PG[page]
   return (
     <div className="space-y-5">
-      <PageHeader title={`참고 문서 · ${REGION} · ${P.t}`} sub={P.sub}
+      <PageHeader eyebrow={`참고 문서 · ${REGION}`} title={P.t} sub={P.sub}
         right={<Seg value={page} onChange={onPage} options={(Object.keys(PG) as DocPage[]).map((v) => ({ v, t: PG[v].t }))} />} />
-      <P.el />
+      <div className="doc-sheet"><P.el /></div>
     </div>
   )
 }

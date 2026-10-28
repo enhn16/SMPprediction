@@ -1,6 +1,6 @@
 import { D, LEVEL, REGION, dropTarget } from '../data'
 import { avg, fmt, lab } from '../fmt'
-import { Card, PageHeader } from '../components/ui'
+import { Card, Num, PageHeader } from '../components/ui'
 import type { Route } from '../App'
 
 export function Help({ go }: { go: (r: Route) => void }) {
@@ -12,27 +12,29 @@ export function Help({ go }: { go: (r: Route) => void }) {
   ]
   return (
     <div className="space-y-5">
-      <PageHeader title="SMP 예측 웹앱" sub={`${REGION} 계통한계가격(SMP)을 기준일 15시에 예측하고, 실제 가격이 들어올 80% 범위를 함께 보여 줍니다 · 왼쪽 메뉴에서 육지/제주 전환`} />
-      <div className="grid gap-3 md:grid-cols-3">
+      <PageHeader eyebrow={`안내 · ${REGION}`} title="SMP 예측 웹앱" sub={`${REGION} 계통한계가격(SMP)을 기준일 15시에 예측하고, 실제 가격이 들어올 80% 범위를 함께 보여 줍니다 · 왼쪽 메뉴에서 육지/제주 전환`}
+        meta={[{ k: '기준일', v: <>{W.base} 15시 판단</>, hl: true }, { k: '최신 공표', v: lab(D.lastPublished) }]} />
+      <div className="card grid gap-1 p-2 md:grid-cols-3">
         {tiles.map((t) => (
-          <button key={t.t} onClick={() => go(t.r)} className="card group p-5 text-left transition hover:border-brand/60 hover:shadow-md">
-            <div className="text-[12.5px] font-semibold text-sub">{t.t}</div>
-            <div className="mt-1 text-[26px] font-extrabold tracking-tight text-brand-dark tabular-nums">{t.v}</div>
-            <div className="mt-0.5 text-[12.5px] text-mute">{t.s}</div>
-            <div className="mt-3 text-[12.5px] font-semibold text-brand group-hover:underline">자세히 보기 →</div>
+          <button key={t.t} onClick={() => go(t.r)} className="group rounded-ui px-5 py-4 text-left transition hover:bg-track">
+            <div className="flex items-center justify-between">
+              <span className="t-label">{t.t}</span><span className="text-[12px] font-semibold text-brand opacity-0 transition group-hover:opacity-100">열기 →</span>
+            </div>
+            <div className="v-hero mt-2 text-ink"><Num v={t.v} /></div>
+            <div className="mt-1 text-[12px] text-mute">{t.s}</div>
           </button>
         ))}
       </div>
       <Card title="메뉴 안내">
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-x-12 gap-y-6 md:grid-cols-2">
           {[
             ['일주일 예측', '내일부터 7일 동안 시간별 SMP와 80% 범위. 맨 위에 과제1 모델의 내일 급락 경보(확률·등급)이 붙습니다. 예측값은 그대로 두고 경보만 더합니다.'],
             ['한 달 예측', '7~34일 뒤를 일 단위(일평균·한낮·저녁·한낮 최저)로. 주차·월별 평균도 함께. 정확도가 낮아 참고 전망입니다.'],
             ['이전 흐름 확인', '달력에서 기간(최대 2주)을 골라, 그때 냈던 예측(급락 경보·일주일·한 달)을 공표 SMP와 비교합니다.'],
             ['참고 문서', '예측별 최종 모델, 비교한 모델과 성능, 선택 이유, 사용 데이터, 팀 비교용 성적표.'],
           ].map(([t, s]) => (
-            <div key={t} className="rounded-lg bg-[#f7f9fb] p-4">
-              <div className="text-[14px] font-bold text-brand-ink">{t}</div>
+            <div key={t}>
+              <div className="text-[14px] font-semibold text-brand-dark">{t}</div>
               <p className="mt-1 text-[13.5px] leading-6 text-sub">{s}</p>
             </div>
           ))}
@@ -42,7 +44,7 @@ export function Help({ go }: { go: (r: Route) => void }) {
         <Card title="80% 범위란?">
           <div className="prose-doc space-y-2">
             <p>「실제 가격이 이 사이에 들어올 것」이라는 약속의 폭입니다. 10번 중 8번은 공표 SMP가 범위 안에 들어와야 하고, 벗어날 때는 아래·위로 반반씩이 균형입니다.</p>
-            <p className="rounded-lg border-l-4 border-brand bg-brand-soft px-4 py-3">활쏘기 비유 — 예측값은 과녁 중심, 범위는 둘레의 원, 공표 SMP는 날아오는 화살.</p>
+            <p className="note">활쏘기 비유 — 예측값은 과녁 중심, 범위는 둘레의 원, 공표 SMP는 날아오는 화살.</p>
           </div>
         </Card>
         <Card title="급락 경보이란?">

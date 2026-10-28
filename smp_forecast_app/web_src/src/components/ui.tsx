@@ -2,69 +2,92 @@ import type { ReactNode } from 'react'
 import type { Row } from '../data'
 import { downloadCsv } from '../fmt'
 
-export function PageHeader({ title, sub, right }: { title: string; sub?: ReactNode; right?: ReactNode }) {
+/** 페이지 머리: 분류(eyebrow) · 제목 · 기준 정보(meta, 세로선으로 구분) · 오른쪽 조작 */
+/** 페이지 머리: 분류(파랑 작은 글씨) · 제목 · 기준 정보. meta의 hl = 판단 기준(기준일·판단 시각) → 파랑 꼬리표.
+ *  나중에 1차(15시)·2차(21시) 표시도 이 자리 */
+export function PageHeader({ title, sub, right, eyebrow, meta }: { title: string; sub?: ReactNode; right?: ReactNode; eyebrow?: ReactNode; meta?: { k: string; v: ReactNode; hl?: boolean }[] }) {
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-[22px] font-bold tracking-tight text-brand-ink">{title}</h1>
-        {sub && <p className="mt-1 text-[13px] text-sub">{sub}</p>}
+    <header className="mb-7 flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+      <div className="min-w-0">
+        {eyebrow && <div className="eyebrow mb-1.5">{eyebrow}</div>}
+        <h1 className="h-page">{title}</h1>
+        {sub && <p className="mt-1.5 text-[13.5px] text-sub">{sub}</p>}
+        {meta && meta.length > 0 && (
+          <dl className="mt-3.5 flex flex-wrap items-center gap-x-5 gap-y-2 text-[12.5px]">
+            {meta.map((m) => m.hl ? (
+              <div key={m.k} className="flex items-baseline gap-1.5 rounded-ui bg-brand-soft px-2.5 py-1 text-brand-dark">
+                <dt className="font-medium">{m.k}</dt><dd className="font-semibold tabular-nums">{m.v}</dd>
+              </div>
+            ) : (
+              <div key={m.k} className="flex items-baseline gap-1.5">
+                <dt className="text-mute">{m.k}</dt><dd className="font-semibold text-ink tabular-nums">{m.v}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
       </div>
       {right}
-    </div>
+    </header>
   )
 }
 
-export function Card({ title, sub, right, children, className = '' }: { title?: ReactNode; sub?: ReactNode; right?: ReactNode; children: ReactNode; className?: string }) {
+/** 흰 면 하나: 제목 줄(구분선 없음) + 본문. flush = 본문 좌우 여백만 (표를 넓게) */
+export function Card({ title, sub, right, children, className = '', flush }: { title?: ReactNode; sub?: ReactNode; right?: ReactNode; children?: ReactNode; className?: string; flush?: boolean }) {
+  const body = children != null && children !== false
   return (
-    <section className={`card card-pad ${className}`}>
+    <section className={`card ${className} ${body ? '' : 'pb-5'}`}>
       {(title || right) && (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-baseline gap-2">
+        <div className="panel-head">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
             {title && <h2 className="h-sec">{title}</h2>}
             {sub && <span className="muted">{sub}</span>}
           </div>
           {right}
         </div>
       )}
-      {children}
+      {body && <div className={flush ? 'px-6 pb-4 pt-3' : 'panel-body'}>{children}</div>}
     </section>
   )
 }
 
+/** 숫자와 단위 분리: '4.2원' → 4.2 + 작은 '원' (숫자 하나짜리 문자열만, '14.6% / 5.1%'는 그대로) */
+export function Num({ v }: { v: ReactNode }) {
+  const m = typeof v === 'string' ? v.match(/^([-+−]?[\d.,]+)\s?(원|%|일|시간)$/) : null
+  return m ? <>{m[1]}<span className="unit">{m[2]}</span></> : <>{v}</>
+}
+
 export type Tone = 'good' | 'bad' | undefined
+const toneCls = (t: Tone) => (t === 'good' ? 'text-good' : t === 'bad' ? 'text-bad' : 'text-ink')
+/** 지표 묶음: 흰 면 하나에 여백으로만 나눔 (선 없음) */
 export function Kpis({ items }: { items: { k: string; v: ReactNode; s?: ReactNode; tone?: Tone }[] }) {
+  const cols = items.length >= 5 ? 'grid-cols-2 md:grid-cols-3 xl:grid-cols-5' : items.length === 4 ? 'grid-cols-2 lg:grid-cols-4' : items.length === 3 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-2'
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+    <div className={`card grid gap-x-8 gap-y-5 px-6 py-5 ${cols}`}>
       {items.map((it) => (
-        <div key={it.k} className="card px-4 py-3.5">
-          <div className="text-[12px] font-medium text-sub">{it.k}</div>
-          <div className={`mt-1 text-[22px] font-bold tabular-nums ${it.tone === 'good' ? 'text-good' : it.tone === 'bad' ? 'text-bad' : 'text-brand-dark'}`}>{it.v}</div>
-          {it.s && <div className="mt-0.5 text-[12px] text-mute">{it.s}</div>}
+        <div key={it.k} className="min-w-0">
+          <div className="t-label">{it.k}</div>
+          <div className={`v-kpi mt-1.5 ${toneCls(it.tone)}`}><Num v={it.v} /></div>
+          {it.s && <div className="mt-1 text-[11.5px] leading-4 text-mute">{it.s}</div>}
         </div>
       ))}
     </div>
   )
 }
 
+/** 구분 버튼: 옅은 트랙 위, 선택 = 진한 파랑 채움 */
 export function Seg<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { v: T; t: string }[] }) {
   return (
-    <div className="inline-flex rounded-lg bg-[#e9eef3] p-1">
-      {options.map((o) => (
-        <button key={o.v} onClick={() => onChange(o.v)}
-          className={`rounded-md px-3.5 py-1.5 text-[13px] font-semibold transition ${value === o.v ? 'bg-white text-brand-dark shadow-sm' : 'text-sub hover:text-brand-dark'}`}>
-          {o.t}
-        </button>
-      ))}
+    <div className="seg" role="group">
+      {options.map((o) => <button key={o.v} onClick={() => onChange(o.v)} aria-pressed={value === o.v}>{o.t}</button>)}
     </div>
   )
 }
 
 export function Select({ value, onChange, options, label }: { value: string; onChange: (v: string) => void; options: { v: string; t: string }[]; label?: string }) {
   return (
-    <label className="flex items-center gap-2 text-[12.5px] text-sub">
+    <label className="flex items-center gap-2 text-[12.5px] font-medium text-sub">
       {label}
-      <select value={value} onChange={(e) => onChange(e.target.value)}
-        className="h-9 rounded-lg border border-line bg-white px-3 text-[13.5px] text-ink outline-none focus:border-brand">
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="field">
         {options.map((o) => <option key={o.v} value={o.v}>{o.t}</option>)}
       </select>
     </label>
@@ -72,19 +95,29 @@ export function Select({ value, onChange, options, label }: { value: string; onC
 }
 
 export type Col = { k: string; t: string; l?: boolean; w?: boolean; f?: (v: any, r: Row) => ReactNode; cls?: (r: Row) => string }
-/** CSV 내려받기 버튼 (작게, 카드·표 오른쪽 위) */
+/** CSV 내려받기 버튼 (작게, 패널·표 오른쪽 위) */
 export function CsvButton({ onClick }: { onClick: () => void }) {
   return (
-    <button onClick={onClick} className="inline-flex items-center gap-1 rounded-md border border-line bg-white px-2.5 py-1 text-[12px] font-semibold text-sub hover:border-brand/60 hover:text-brand-dark">
+    <button onClick={onClick} className="btn h-7 px-2.5 text-[12px]">
       <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>CSV
     </button>
   )
 }
 
-export function Table({ rows, cols, sel, csv }: { rows: Row[]; cols: Col[]; sel?: (r: Row) => boolean; csv?: string }) {
-  const table = (
-    <div className="overflow-x-auto rounded-lg border border-line">
-      <table className="tbl">
+/** caption·csv가 있으면 표 바로 위에 붙은 머리줄(왼쪽 제목, 오른쪽 CSV)로 */
+export function Table({ rows, cols, sel, csv, caption }: { rows: Row[]; cols: Col[]; sel?: (r: Row) => boolean; csv?: string; caption?: ReactNode }) {
+  // CSV는 표시 형식이 아닌 원래 값으로
+  const save = () => downloadCsv(csv!, cols.map((c) => c.t), rows.map((r) => cols.map((c) => r[c.k])))
+  const bar = (caption || csv) && (
+    <div className="flex min-h-8 items-center justify-between gap-3 pb-2">
+      <span className="text-[13px] font-semibold text-ink">{caption}</span>
+      {csv && <CsvButton onClick={save} />}
+    </div>
+  )
+  return (
+    <div>
+      {bar}
+      <div className="tbl-wrap"><table className="tbl">
         <thead><tr>{cols.map((c) => <th key={c.k} className={`${c.l ? 'l' : ''} ${c.w ? 'w' : ''}`}>{c.t}</th>)}</tr></thead>
         <tbody>
           {rows.map((r, i) => (
@@ -93,18 +126,15 @@ export function Table({ rows, cols, sel, csv }: { rows: Row[]; cols: Col[]; sel?
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div>
     </div>
   )
-  if (!csv) return table
-  // CSV는 표시 형식이 아닌 원래 값으로
-  const save = () => downloadCsv(csv, cols.map((c) => c.t), rows.map((r) => cols.map((c) => r[c.k])))
-  return <div className="space-y-1.5"><div className="flex justify-end"><CsvButton onClick={save} /></div>{table}</div>
 }
 
+/** 작은 꼬리표 */
 export function Pill({ children, tone = 'brand' }: { children: ReactNode; tone?: 'brand' | 'gray' | 'red' }) {
-  const c = tone === 'gray' ? 'bg-[#eef1f4] text-sub' : tone === 'red' ? 'bg-[#fde8ea] text-bad' : 'bg-brand-soft text-brand-dark'
-  return <span className={`inline-block rounded-full px-2.5 py-0.5 text-[12px] font-semibold ${c}`}>{children}</span>
+  const c = tone === 'gray' ? 'bg-track text-sub' : tone === 'red' ? 'bg-bad/10 text-bad' : 'bg-brand-soft text-brand-dark'
+  return <span className={`inline-block rounded-[4px] px-1.5 py-px align-middle text-[11.5px] font-semibold ${c}`}>{children}</span>
 }
 
 export function Legend({ items }: { items: { t: string; c: 'band' | 'pred' | 'act' | 'out' | 'shade' | string }[] }) {
@@ -112,12 +142,12 @@ export function Legend({ items }: { items: { t: string; c: 'band' | 'pred' | 'ac
     <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-sub">
       {items.map((it) => (
         <span key={it.t} className="inline-flex items-center gap-1.5">
-          {it.c === 'band' && <i className="inline-block h-2.5 w-4 rounded-sm border border-brand/50 bg-band" />}
-          {it.c === 'pred' && <i className="inline-block h-0.5 w-4 bg-brand" />}
-          {it.c === 'act' && <i className="inline-block h-0.5 w-4 bg-ink" />}
+          {it.c === 'band' && <i className="inline-block h-2.5 w-4 rounded-[2px] bg-band" />}
+          {it.c === 'pred' && <i className="inline-block h-[2px] w-4 bg-brand" />}
+          {it.c === 'act' && <i className="inline-block h-[2px] w-4 bg-ink" />}
           {it.c === 'out' && <i className="inline-block h-2 w-2 rounded-full bg-bad" />}
-          {it.c === 'shade' && <i className="inline-block h-2.5 w-4 rounded-sm bg-[#eef1f4]" />}
-          {it.c.startsWith('#') && <i className="inline-block h-0.5 w-4" style={{ background: it.c }} />}
+          {it.c === 'shade' && <i className="inline-block h-2.5 w-4 rounded-[2px] bg-disabled" />}
+          {it.c.startsWith('#') && <i className="inline-block h-[2px] w-4" style={{ background: it.c }} />}
           {it.t}
         </span>
       ))}
