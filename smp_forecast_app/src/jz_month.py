@@ -12,7 +12,7 @@
   (육지 한 달 예측 기록이 기준일 2025-05-28부터라 상반기 맞춤 단계는 없음. 후보에 학습 모수가 없어 바로 비교)
 출력: outputs/tables/JMZ1_compare_2025H2.csv, JMZ_choice.json, data/processed/smp_forecast_app/jeju/JMZ_predictions_daily.csv
       (--score2026) JMZ2_test2026.csv
-실행: python -m smp_forecast_app.src.jz_month [--score2026]
+실행: python -m smp_forecast_app.src.jz_month [--score2026] [--v1]   (기본 = 육지 한 달 v2 기준·2025 전체로 선택 / --v1: 이전 방식, *_v1 파일)
 """
 import json
 import sys
@@ -82,13 +82,18 @@ def cand_point(land, s, v):
             "육지 + 같은 유형일 8일 차이": p + same8}
 
 
-def main(score2026=False):
-    land = pd.read_csv(PROCESSED_DIR / "smp_forecast_app" / "MZ_predictions_daily.csv", parse_dates=["base_date", "date"])
+def main(score2026=False, ver="v2"):
+    """ver: v2(기본, 2026-10-28~) = 육지 한 달 mx v2(MONTH.md 0절, 운영 중) 기준, 팀 규칙대로 2025 전체로 선택 → 기본 파일 이름
+    v1 = 이전 육지 한 달 MZ 기준, 2025 하반기로 선택 → *_v1 파일."""
+    v2 = ver == "v2"
+    src = PROCESSED_DIR / "smp_forecast_app" / ("mx/MX_predictions_daily_v2.csv" if v2 else "MZ_predictions_daily.csv")
+    sfx = "" if v2 else "_v1"
+    land = pd.read_csv(src, parse_dates=["base_date", "date"])
     v, off, j = base_values()
     for s in STATS:
         land[f"y_{s}"] = j[s].reindex(land["date"]).values   # 제주 실적
     land["offday"] = off.reindex(land["date"]).astype(int).values
-    ev = (land["date"] >= "2025-07-01") & (land["date"] < "2026-01-01") & land["y_mean"].notna()
+    ev = (land["date"] >= ("2025-01-01" if v2 else "2025-07-01")) & (land["date"] < "2026-01-01") & land["y_mean"].notna()
     rows, choice_p, choice_w = [], {}, {}
     for s in STATS:
         cp = cand_point(land, s, v)
@@ -116,7 +121,7 @@ def main(score2026=False):
         choice_w[s] = select(pd.DataFrame(sel))
     t = pd.DataFrame(rows)
     TAB.mkdir(parents=True, exist_ok=True)
-    t.round(4).to_csv(TAB / "JMZ1_compare_2025H2.csv", index=False, encoding="utf-8-sig")
+    t.round(4).to_csv(TAB / ("JMZ1_compare_2025.csv" if v2 else "JMZ1_compare_2025H2.csv"), index=False, encoding="utf-8-sig")
     pd.set_option("display.width", 200)
     print(t.round(3).to_string(index=False))
 
@@ -126,16 +131,17 @@ def main(score2026=False):
     cols = ["base_date", "H", "date", "day_type", "offday"] + [f"y_{s}" for s in STATS] + \
            [f"{p}_{s}" for s in STATS for p in ("pred", "lo", "hi")]
     JDIR.mkdir(parents=True, exist_ok=True)
-    out[cols].round(2).to_csv(JDIR / "JMZ_predictions_daily.csv", index=False, encoding="utf-8-sig")
+    out[cols].round(2).to_csv(JDIR / f"JMZ_predictions_daily{sfx}.csv", index=False, encoding="utf-8-sig")
     choice = {"지표별": {s: {"점예측": choice_p[s], "범위": choice_w[s]} for s in STATS},
-              "선택 절차": "2025 하반기 MAE (0.05원 이내면 단순한 쪽), 범위는 포함률 75~85% 중 구간점수 최소",
+              "선택 절차": f"{'2025 전체' if v2 else '2025 하반기'} MAE (0.05원 이내면 단순한 쪽), 범위는 포함률 75~85% 중 구간점수 최소",
+              "육지 한 달": "mx v2 (MX_predictions_daily_v2.csv, 운영 mx_ops)" if v2 else "MZ (MZ_predictions_daily.csv)",
               "범위 하한": "0원 자르기 없음", "성격": "참고 전망 (육지 한 달도 2026에 기준을 못 이김)",
-              "시험": "2026-01-01 ~ (제주 한 달 1차 시험)"}
-    (TAB / "JMZ_choice.json").write_text(json.dumps(choice, ensure_ascii=False, indent=1), encoding="utf-8")
+              "시험": "2026-01-01 ~ 10-18 (제주 한 달 2차 시험, 육지 v2 기준)" if v2 else "2026-01-01 ~ (제주 한 달 1차 시험)"}
+    (TAB / f"JMZ_choice{sfx}.json").write_text(json.dumps(choice, ensure_ascii=False, indent=1), encoding="utf-8")
     print(json.dumps(choice, ensure_ascii=False, indent=1))
 
     if score2026:   # 사용자 확인 후 한 번
-        te = (land["date"] >= "2026-01-01") & land["y_mean"].notna()
+        te = (land["date"] >= "2026-01-01") & land["y_mean"].notna() & ((land["date"] <= "2026-10-18") if v2 else True)
         rows = []
         for s in STATS:
             o = land["offday"].values
@@ -146,9 +152,9 @@ def main(score2026=False):
             r = score(y, out.loc[te, f"lo_{s}"].values, out.loc[te, f"hi_{s}"].values, p)
             rows.append({"지표": s, "일수": int(te.sum()), "MAE": r["MAE"], "기준 MAE": b, "rMAE": r["MAE"] / b, "육지 그대로 MAE": lp,
                          **{c: r[c] for c in ("포함률", "하한아래", "상한위", "평균폭", "구간점수")}})
-        pd.DataFrame(rows).round(4).to_csv(TAB / "JMZ2_test2026.csv", index=False, encoding="utf-8-sig")
+        pd.DataFrame(rows).round(4).to_csv(TAB / f"JMZ2_test2026{sfx}.csv", index=False, encoding="utf-8-sig")
         print(pd.DataFrame(rows).round(3).to_string(index=False))
 
 
 if __name__ == "__main__":
-    main("--score2026" in sys.argv[1:])
+    main("--score2026" in sys.argv[1:], "v1" if "--v1" in sys.argv[1:] else "v2")

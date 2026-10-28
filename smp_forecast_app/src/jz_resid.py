@@ -20,7 +20,7 @@ import lightgbm as lgb
 import pandas as pd
 
 from smp_forecast_app.src.jz_common import HS, load_pred, rolling_fit
-from smp_forecast_app.src.jz_features import CAL, DEM, JDIR, OM, SPREAD, SUKUB, WEATHER
+from smp_forecast_app.src.jz_features import CAL, DEM, JDIR, OM, SPREAD, SUKUB, WEATHER  # noqa: F401
 from smp_forecast_app.src.jz_tab import COLS, table
 from smp_forecast_app.src.model import PARAMS
 
@@ -64,10 +64,12 @@ def fit_predict(cols, obj):
     return f
 
 
-def main(sets=None):
-    RES.mkdir(parents=True, exist_ok=True)
+def main(sets=None, bases=BASES, out_dir=RES):
+    """out_dir·bases: 기본 = 기존 동작. 2023 보강 피처 재학습(2026-10-28)은 jzoo_resid_v2/, 기준 land만."""
+    RES_ = out_dir
+    RES_.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
-    for bn in BASES:
+    for bn in bases:
         b = base_all(bn)
         out = {(k, o): [] for k in (sets or SETS) for o in OBJ}
         for H in HS:
@@ -76,10 +78,15 @@ def main(sets=None):
                 out[(k, o)].append(rolling_fit(d, H, "MS", fit_predict(SETS[k], o)).rename(columns={"pred": "rhat"}))
             print(f"잔차 보정 {bn} H={H} ({time.time()-t0:.0f}s)", flush=True)
         for (k, o), parts in out.items():
-            pd.concat(parts).round(3).to_csv(RES / f"{bn}_{k}_{o}.csv.gz", index=False, encoding="utf-8")
-    print(f"저장: {RES}", flush=True)
+            pd.concat(parts).round(3).to_csv(RES_ / f"{bn}_{k}_{o}.csv.gz", index=False, encoding="utf-8")
+    print(f"저장: {RES_}", flush=True)
 
 
 if __name__ == "__main__":
     import sys
-    main(sys.argv[1:] or None)
+    args = sys.argv[1:]
+    if "--v2" in args:   # 2023 보강 피처로 기준 land만 다시 학습 → jzoo_resid_v2/
+        args.remove("--v2")
+        main(args or None, bases=["land"], out_dir=JDIR / "jzoo_resid_v2")
+    else:
+        main(args or None)

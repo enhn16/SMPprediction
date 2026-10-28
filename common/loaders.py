@@ -453,7 +453,8 @@ def load_kpx_jeju_sukub() -> pd.DataFrame:
     """data/raw/api/kpx_jeju_sukub (제주계통운영정보 5분 실적) → [time, supply, demand, renew, solar, wind] (MW).
 
     time = 5분 시각(KST). demand = 발전단 수요(currPwrTot). 송전단 수요(currNtPwrTot)는 2026-06 이전 0이라 읽지 않는다.
-    과거분은 사용자 내려받기 파일 data/raw/chejusukub*.csv (cp949, 2024-01 ~ 2026-10-23 09:15)를 함께 읽고, 겹치는 시각은 파일 값을 쓴다.
+    과거분은 사용자 내려받기 파일 data/raw/chejusukub*.csv (cp949, 2024-01 ~ 2026-10-23 09:15)와
+    제주계통운영정보_*.csv (같은 형식, 2023년)를 함께 읽고, 겹치는 시각은 파일 값을 쓴다.
     (2024-10-01 ~ 2025-06-24는 API 수요가 파일보다 30~60MW 낮음. 파일 쪽이 하루전 수요예측 대비 비율이 경계에서 튀지 않아 일관됨)
     공급능력·수요 0 이하(2026년 41개 등)는 결측 처리.
     """
@@ -465,7 +466,8 @@ def load_kpx_jeju_sukub() -> pd.DataFrame:
                         "renew": pd.to_numeric(df["renewPwrTot"], errors="coerce"),
                         "solar": pd.to_numeric(df["renewPwrSolar"], errors="coerce"),
                         "wind": pd.to_numeric(df["renewPwrWind"], errors="coerce")})
-    dl = [pd.read_csv(p, encoding="cp949", dtype=str) for p in sorted(RAW_DIR.glob("chejusukub*.csv"))]
+    paths = sorted(RAW_DIR.glob("chejusukub*.csv")) + sorted(RAW_DIR.glob("제주계통운영정보_*.csv"))
+    dl = [pd.read_csv(p, encoding="cp949", dtype=str) for p in paths]
     if dl:
         d = pd.concat(dl, ignore_index=True)
         d.columns = ["time", "supply", "demand", "renew", "solar", "wind"]

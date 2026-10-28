@@ -1,0 +1,53 @@
+{
+ "선택": "(b) 당긴 Chronos + 1차 피처 보정",
+ "후보 코드": "b",
+ "잔차 보정 λ": 0.5,
+ "잔차 보정 피처": [
+  "hour",
+  "dow",
+  "offday",
+  "daytype",
+  "prev_offday",
+  "next_offday",
+  "type_change",
+  "is_myeongjeol",
+  "fc_lng",
+  "fc_coal",
+  "cap_solar",
+  "kpx_peak",
+  "kpx_peak_rel",
+  "kpx_peak_vs_d1",
+  "rf_sky_pm",
+  "rf_pop_pm",
+  "rf_ta_pm",
+  "rf_sky_am",
+  "om_rad_mid",
+  "om_cloud_mid",
+  "pred",
+  "c_spread",
+  "c_vs_d1",
+  "c_vs_same",
+  "c_vs_ma28"
+ ],
+ "범위": {
+  "2": "보정분위수회귀(Chronos-2 분위수)·갱신90일·시간대묶음×휴무일",
+  "3": "Chronos-2 분위수 + 잔차 이동",
+  "4": "보정분위수회귀(Chronos-2 분위수)·갱신90일·시간대묶음×휴무일",
+  "5": "Chronos-2 분위수 + 잔차 이동",
+  "6": "Chronos-2 분위수 그대로",
+  "7": "Chronos-2 분위수 + 잔차 이동"
+ },
+ "λ(2025 전체, 후보별)": {
+  "a": null,
+  "b0": null,
+  "b": 0.5,
+  "c": 0.5,
+  "d": 0.5,
+  "dall": 0.5
+ },
+ "Chronos": "1차 Chronos-2 small·Chronos-2를 기준일 +1, H +1로 당겨 씀 (입력이 SMP·달력뿐이라 같음, 재실행 확인 최대 차 0.001원)",
+ "선택 절차": "λ는 2025 상반기 → 2025 하반기 MAE 비교(0.05원 이내면 단순한 쪽) → λ 2025 전체로 재적합; 범위는 2025 하반기 포함률 75~85% 중 구간점수 최소",
+ "잔차 학습": "LightGBM L1(wz_resid.LGB), H별 매월 1일 재학습, 실적 2023-01 ~ 재학습일 − H일",
+ "21시 정보": "1차 정보 + I+1 공표 SMP·하루전 수요예측. 운영은 공표가 없으면 1차 값(pub=0)",
+ "시험": "2026-01-01 ~ 2026-10-18 한 번 채점 (일주일 2차 예측 2차 시험: 2023 보강 자료로 재학습, 1차 시험 결과는 wz2/v1/)"
+}

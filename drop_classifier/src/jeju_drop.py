@@ -58,9 +58,10 @@ SETS = {"S1 육지형": CAL + LAG + DEMAND + FCST, "S2 +풍속·일사": CAL + L
         "S3 +육지": CAL + LAG + DEMAND + FCST + OM + LAND, "S4 +제주예측": CAL + LAG + DEMAND + FCST + OM + LAND + JPRED}
 
 
-def day_table(f: pd.DataFrame | None = None, jc2sx: pd.DataFrame | None = None) -> pd.DataFrame:
+def day_table(f: pd.DataFrame | None = None, jc2sx: pd.DataFrame | None = None, start: str = TRAIN_START) -> pd.DataFrame:
     """대상일 D 한 행: 피처(판단일 D-1 15시 기준) + 한낮 최저(min11_15)·급락 레이블.
-    f: 제주 피처 표 H=1 (없으면 저장 파일), jc2sx: 제주 Chronos 예측 [date, hour, H, pred, qlo] (없으면 백테스트 파일) — 운영용."""
+    f: 제주 피처 표 H=1 (없으면 저장 파일), jc2sx: 제주 Chronos 예측 [date, hour, H, pred, qlo] (없으면 백테스트 파일) — 운영용.
+    start: 첫 대상일 (기본 2024-01-01 = 기존 동작, 팀 규칙 재선택은 2023-01-01)."""
     f = load_feats(1) if f is None else f
     d = f[f["hour"] == 12].drop(columns=["hour"]).copy().reset_index(drop=True)
     d = d.rename(columns={"L_s_same_h": "L_s_same_h12"})
@@ -87,7 +88,7 @@ def day_table(f: pd.DataFrame | None = None, jc2sx: pd.DataFrame | None = None) 
         d["J_c2sx_midmin"], d["J_c2sx_qlo_midmin"] = d["date"].map(c["pred"]), d["date"].map(c["qlo"])
     except FileNotFoundError:
         d["J_c2sx_midmin"], d["J_c2sx_qlo_midmin"] = np.nan, np.nan
-    return d[d["date"] >= TRAIN_START].reset_index(drop=True)
+    return d[d["date"] >= start].reset_index(drop=True)
 
 
 # ---------- 모델: f(tr, te, cols) → 위험 점수 (높을수록 위험) ----------
