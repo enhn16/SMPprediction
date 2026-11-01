@@ -46,7 +46,7 @@ function DropFlow({ dates }: { dates: string[] }) {
   const hasMin = REGION === '육지' // 제주 급락 모델은 분류(KNN)라 예상 한낮 최저가 없음
   const WARN = D.dropMeta.lines?.['주의'] ?? 89.8, STRONG = D.dropMeta.lines?.['경보'] ?? 66.7 // 육지 예상 한낮 최저 문턱 (drop_choice_육지.json)
   const rows = dates.map((d) => {
-    const on = dropTarget(d)   // 평일은 판정 대상 아님 (팀 규칙: 급락은 휴일·주말만)
+    const on = dropTarget(d)   // 육지 = 모든 날, 제주 = 전체 날 모델 전까지 휴일·주말만
     const dr = on ? D.past.drop[d] : undefined, y = D.past.dailyActual[d]?.midmin ?? null
     const alarm = dr ? dr.grade !== '없음' : null, drop = y != null ? y < 30 : null
     const res = !on ? '평일' : alarm == null || drop == null ? '-' : alarm && drop ? '적중' : !alarm && drop ? '놓침' : alarm ? '헛경보' : '정상'
@@ -80,12 +80,12 @@ function DropFlow({ dates }: { dates: string[] }) {
       <Kpis items={[
         { k: '비교한 날', v: n.length, s: `${lab(dates[0])} ~ ${lab(dates[dates.length - 1])}` },
         { k: '실제 급락일', v: cnt('적중') + cnt('놓침'), s: '한낮 최저 30원 미만' },
-        { k: '적중 / 놓침', v: `${cnt('적중')} / ${cnt('놓침')}`, s: '주의 이상 경보 기준', tone: cnt('놓침') ? 'bad' : undefined },
+        { k: '적중 / 놓침', main: true, v: `${cnt('적중')} / ${cnt('놓침')}`, s: '주의 이상 경보 기준' },
         { k: '헛경보', v: cnt('헛경보'), s: '경보했지만 급락 없음' },
         { k: '평균 급락 확률', v: pct(avg(rows.map((r) => r.dr?.prob ?? null)), 0), s: `휴일·주말 ${dates.filter((d) => info(d).off).length}일 (평일은 대상 아님)` },
       ]} />
       <Card title={hasMin ? '예상 한낮 최저 vs 공표 한낮 최저' : '급락 확률 vs 공표 한낮 최저'} sub={hasMin ? '막대 = 급락 확률(오른쪽 축) · 점선 = 등급 문턱' : '막대 = 급락 확률(오른쪽 축) · 점선 = 급락 기준 30원'}
-        right={<Legend items={[...(hasMin ? [{ t: '예상 한낮 최저 (과제1)', c: 'pred' }] : []), { t: '공표 한낮 최저', c: 'act' }]} />}>
+        right={<Legend items={[...(hasMin ? [{ t: '예상 한낮 최저', c: 'pred' }] : []), { t: '공표 한낮 최저', c: 'act' }]} />}>
         <EChart option={opt} height={340} />
       </Card>
       <Card flush title="날짜별" right={<CsvButton onClick={() => downloadCsv(`${REGION}_급락판별_${dates[0]}_${dates[dates.length - 1]}`,
@@ -100,14 +100,14 @@ function DropFlow({ dates }: { dates: string[] }) {
                   <td className={`l ${info(r.d).off ? 'text-bad' : ''}`}>{lab(r.d)} {info(r.d).dt !== '평일' ? info(r.d).dt : ''}</td>
                   {hasMin && <td>{fmt(r.dr?.min)}</td>}<td className="l"><DropChip d={r.dr} date={r.d} /></td>
                   <td className={`font-semibold ${r.y != null && r.y < 30 ? 'text-bad' : ''}`}>{fmt(r.y)}</td>
-                  <td className={`l font-semibold ${r.res === '적중' ? 'text-good' : r.res === '놓침' || r.res === '헛경보' ? 'text-bad' : 'text-mute'}`}>{r.res}</td>
+                  <td className={`l font-semibold ${r.res === '적중' ? 'text-good' : r.res === '놓침' || r.res === '헛경보' ? 'text-ink' : 'text-mute'}`}>{r.res}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </Card>
-      <p className="muted">내일 급락 경보 = 대상일 하루 전 15시에 {D.dropMeta.model}이 낸 판정. 급락 = 휴일·주말 11~15시 최저 SMP 30원 미만 (평일은 판정 대상 아님, 팀 공통 규칙). 결과는 주의 이상을 경보로 봅니다.</p>
+      <p className="muted">내일 급락 경보 = 대상일 하루 전 15시에 {D.dropMeta.model}이 낸 판정. 급락 = 11~15시 최저 SMP 30원 미만 (육지는 모든 날, 제주는 현재 휴일·주말). 결과는 주의 이상을 경보로 봅니다.</p>
     </>
   )
 }
@@ -118,7 +118,7 @@ function Summary({ s, unit }: { s: { p: any[]; lo: any[]; hi: any[]; y: any[] };
   const below = idx.length ? idx.filter((i) => s.y[i] < s.lo[i]).length / idx.length : null
   return <Kpis items={[
     { k: `비교한 ${unit}`, v: idx.length },
-    { k: '평균 오차 (MAE)', v: fmt(avg(idx.map((i) => Math.abs(s.y[i] - s.p[i])))) + '원', s: `편향(공표−예측) ${sgn(avg(idx.map((i) => s.y[i] - s.p[i])))}원` },
+    { k: '평균 오차 (MAE)', main: true, v: fmt(avg(idx.map((i) => Math.abs(s.y[i] - s.p[i])))) + '원', s: `편향(공표−예측) ${sgn(avg(idx.map((i) => s.y[i] - s.p[i])))}원` },
     { k: '80% 범위 포함률', v: pct(cov), s: '목표 75~85%', tone: cov == null ? undefined : cov >= 0.75 && cov <= 0.85 ? 'good' : 'bad' },
     { k: '하한 아래 / 상한 위', v: `${pct(below)} / ${pct(cov == null || below == null ? null : 1 - cov - below)}`, s: '각각 약 10%가 균형' },
     { k: '평균 범위 폭', v: fmt(avg(idx.map((i) => s.hi[i] - s.lo[i]))) + '원' },
@@ -175,7 +175,7 @@ function HourlyFlow({ dates, H }: { dates: string[]; H: string }) {
                     <td className="text-sub">{r ? `${fmt(avg(r[1]))} ~ ${fmt(avg(r[2]))}` : '-'}</td>
                     <td className="font-semibold">{fmt(avg(y))}</td>
                     <td>{fmt(ok.length ? avg(ok.map((i) => Math.abs((y[i] as number) - (r![0][i] as number)))) : null)}</td>
-                    <td className={cov == null ? '' : cov >= 0.75 ? 'text-good' : 'text-bad font-semibold'}>{pct(cov)}</td>
+                    <td className={cov != null && cov >= 0.75 ? 'text-good' : ''}>{pct(cov)}</td>
                     <td className="text-sub">{ok.length ? `${below} / ${above}시간` : '-'}</td>
                   </tr>
                 )
@@ -214,7 +214,7 @@ function DailyFlow({ dates, H, stat }: { dates: string[]; H: string; stat: Stat 
                   <td className={`l ${info(d).off ? 'text-bad' : ''}`}>{lab(d)} {info(d).dt !== '평일' ? info(d).dt : ''}</td>
                   <td>{fmt(s.lo[i])}</td><td className="font-semibold text-brand-dark">{fmt(s.p[i])}</td><td>{fmt(s.hi[i])}</td><td className="font-semibold">{fmt(s.y[i])}</td>
                   <td>{s.y[i] != null && s.p[i] != null ? sgn(s.y[i] - s.p[i]) : '-'}</td>
-                  <td className={`l font-semibold ${s.y[i] == null ? 'text-mute' : inside(s.y[i], s.lo[i], s.hi[i]) ? 'text-good' : 'text-bad'}`}>{s.y[i] == null ? '-' : inside(s.y[i], s.lo[i], s.hi[i]) ? '안' : '밖'}</td>
+                  <td className={`l font-semibold ${s.y[i] == null ? 'text-mute' : inside(s.y[i], s.lo[i], s.hi[i]) ? 'text-good' : 'text-ink'}`}>{s.y[i] == null ? '-' : inside(s.y[i], s.lo[i], s.hi[i]) ? '안' : '밖'}</td>
                 </tr>
               ))}
             </tbody>

@@ -5,21 +5,22 @@ import { JEJU } from './theme'
 import { Week } from './pages/Week'
 import { Month } from './pages/Month'
 import { Flow } from './pages/Flow'
+import { Calendar } from './pages/Calendar'
 import { Docs, type DocPage } from './pages/Docs'
 import { Help } from './pages/Help'
 
-export type Route = 'week' | 'month' | 'flow' | 'docs' | 'help'
+export type Route = 'week' | 'month' | 'flow' | 'cal' | 'docs' | 'help'
 // 좌측 메뉴: 비슷한 것끼리 묶음 (예측 / 검증 / 안내)
 const NAV: { group: string; items: { r: Route; t: string; icon: string }[] }[] = [
   { group: '예측', items: [{ r: 'week', t: '일주일 예측', icon: 'M3 5h18M3 10h18M3 15h12M3 20h8' }, { r: 'month', t: '한 달 예측', icon: 'M4 5h16v15H4zM4 9h16M9 3v4M15 3v4' }] },
-  { group: '검증', items: [{ r: 'flow', t: '이전 흐름 확인', icon: 'M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 7v5l3 2' }] },
+  { group: '검증', items: [{ r: 'flow', t: '이전 흐름 확인', icon: 'M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 7v5l3 2' }, { r: 'cal', t: '예측 달력', icon: 'M4 5h16v15H4zM4 9h16M9 3v4M15 3v4M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01' }] },
   { group: '안내', items: [{ r: 'docs', t: '참고 문서', icon: 'M6 3h9l5 5v13H6zM14 3v6h6M9 13h8M9 17h6' }, { r: 'help', t: '설명', icon: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16v-1M12 8a2.2 2.2 0 0 1 1.3 4c-.8.5-1.3 1-1.3 2' }] },
 ]
-const DOC_PAGES: DocPage[] = ['ov', 'drop', 'wk', 'mo']
+const DOC_PAGES: DocPage[] = ['ov', 'drop', 'surge', 'wk', 'mo']
 
 function parse(): { r: Route; doc: DocPage } {
   const [a, b] = location.hash.slice(1).split('/')
-  const r = (['week', 'month', 'flow', 'docs', 'help'] as Route[]).includes(a as Route) ? (a as Route) : 'help' // 첫 화면 = 설명
+  const r = (['week', 'month', 'flow', 'cal', 'docs', 'help'] as Route[]).includes(a as Route) ? (a as Route) : 'help' // 첫 화면 = 설명
   return { r, doc: DOC_PAGES.includes(b as DocPage) ? (b as DocPage) : 'ov' }
 }
 
@@ -94,7 +95,7 @@ export default function App() {
           </div>
         </div>
         {HAS_JEJU && (
-          <div className="mt-5 grid grid-cols-2 gap-0.5 rounded-ui bg-white/[0.07] p-[3px]" role="group" aria-label="계통 선택">
+          <div className="mt-5 grid grid-cols-2 gap-0.5 rounded-ui bg-white/10 p-[3px]" role="group" aria-label="계통 선택">
             {(['육지', '제주'] as Region[]).map((r) => (
               <button key={r} onClick={() => { pick(r); setMenu(false) }} aria-pressed={region === r} disabled={loading}
                 className={`h-[30px] rounded-[4px] text-[13px] font-semibold transition ${region === r ? 'bg-brand text-white' : 'text-white/70 hover:text-white'}`}>
@@ -103,9 +104,10 @@ export default function App() {
           </div>
         )}
       </div>
-      <div className="flex-1 space-y-6 px-3 pt-1">
-        {NAV.map((g) => (
+      <div className="flex-1 px-3 pt-1">
+        {NAV.map((g, gi) => (
           <div key={g.group}>
+            {gi > 0 && <div className="mx-3 my-4 border-t border-white/10" />}
             <div className="px-3 pb-2 text-[11.5px] font-medium text-white/45">{g.group}</div>
             {g.items.map((it) => {
               const on = st.r === it.r
@@ -149,10 +151,11 @@ export default function App() {
           {st.r === 'week' && <Week />}
           {st.r === 'month' && <Month />}
           {st.r === 'flow' && <Flow />}
+          {st.r === 'cal' && <Calendar />}
           {st.r === 'docs' && <Docs page={st.doc} onPage={(p) => go('docs', p)} />}
           {st.r === 'help' && <Help go={go} />}
           <footer className="mt-12 text-[12px] text-mute">
-            출처: 전력거래소·기상청·한국천문연구원·EPSIS 공공데이터 · 숙명여대 P4 산학 프로젝트 (한국중부발전 동반성장부)
+            출처: 전력거래소·기상청·한국천문연구원·EPSIS 공공데이터
           </footer>
         </div>
       </main>

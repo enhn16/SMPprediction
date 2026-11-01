@@ -112,14 +112,15 @@ def drop_meta(region, drop):
         ch = _json_at(LAND_DROP_CHOICE)
         a, b = ch["확률식"]["a"], ch["확률식"]["b"]
         pr = lambda x: round(float(1 / (1 + np.exp(-(a * -x + b)))), 4)
-        return {"warn": pr(ch["문턱"]["주의"]), "strong": pr(ch["문턱"]["경보"]), "real": real, "lines": ch.get("문턱 표시", {}),
-                "model": "과제1 모델(Ridge+EBM+랜덤포레스트)"}
+        lines = ch.get("문턱 표시") or {k: round(float(ch["문턱"][k]), 1) for k in ("주의", "경보")}
+        return {"warn": pr(ch["문턱"]["주의"]), "strong": pr(ch["문턱"]["경보"]), "real": real, "lines": lines,
+                "model": "급락 예측 모델(LSTM + LightGBM 평균)"}
     thr = _json("JD_choice.json").get("등급 문턱 확률", {})
-    return {"warn": thr.get("주의"), "strong": thr.get("강한 경보"), "real": real, "model": "과제1 제주 모델(KNN 분류: 과거 비슷한 날 25일)"}
+    return {"warn": thr.get("주의"), "strong": thr.get("강한 경보"), "real": real, "model": "제주 급락 예측 모델(KNN 분류: 과거 비슷한 날 25일)"}
 
 
 def drop_cal(region):
-    """급락 확률 점검표: 연도 × 등급·확률 구간 (label이 있는 날만 — 육지는 휴일·주말), 2025 = 검증, 2026 = 시험."""
+    """급락 확률 점검표: 연도 × 등급·확률 구간 (label이 있는 날만 — 육지는 모든 날, 제주는 전체 날 산출 전이라 휴일·주말), 2025 = 검증, 2026 = 시험."""
     d = _drop_file(region).dropna(subset=["label"])
     d["연도"] = d["date"].str[:4].astype(int)
     rows = []
@@ -139,6 +140,38 @@ def _drop_file(region):
     p = SRC[region]["drop"]
     d = pd.read_csv(p) if p.exists() else pd.DataFrame(columns=["date", "grade", "pred_min", "prob"])
     return d.rename(columns={"score": "pred_min"}) if "score" in d and "pred_min" not in d else d
+
+
+SURGE_T = ROOT / "surge_classifier" / "outputs" / "tables"
+
+
+def surge_payload():
+    """내일 급등 경보 (R4 v3, 육지만): 백테스트 + 운영 기록(같은 날은 운영 기록), 2026 등급별 빈도·적중 (웹 문구용, 2026은 참고)."""
+    p = SURGE_T / "surge_육지_15h.csv"
+    if not p.exists():
+        return None
+    s = pd.read_csv(p)
+    ol = OPS / "surge_log.csv"
+    if ol.exists():
+        o = pd.read_csv(ol)
+        s = pd.concat([s[~s["date"].isin(o["date"])], o], ignore_index=True)
+    past = {r.date: {"grade": r.grade, "prob": round(float(r.prob), 3)} for r in s.itertuples()}
+    t = s[(s["date"] >= "2026-01-01") & s["label"].notna()] if "label" in s else s.iloc[:0]
+    months = max(len(t) / 30.44, 1e-9)
+    base = float(t["label"].mean()) if len(t) else None
+
+    def lvl(mask):
+        x = t[mask]
+        rate = float(x["label"].mean()) if len(x) else None
+        return {"n": len(x), "k": int(x["label"].sum()), "rate": None if rate is None else round(rate, 4),
+                "perMonth": round(len(x) / months, 1), "lift": None if not rate or not base else round(rate / base, 1)}
+    ch = _json_at(SURGE_T / "surge_choice_육지_15h.json")
+    a, b = ch["확률식"]["a"], ch["확률식"]["b"]
+    to_p = lambda x: round(float(1 / (1 + np.exp(-(a * x + b)))), 4)
+    meta = {"base": None if base is None else round(base, 4), "days": len(t),
+            "warnP": to_p(ch["문턱"]["주의"]), "strongP": to_p(ch["문턱"]["경보"]),
+            "warn": lvl(t["grade"].isin(["주의", "경보"])), "strong": lvl(t["grade"] == "경보")}
+    return {"past": past, "meta": meta, "model": "급등 예측 모델(부호 고정 점수 + 스플라인 로지스틱 + LightGBM 평균)"}
 
 
 def region_payload(region, dayinfo):
@@ -196,9 +229,12 @@ def main():
     cal = build_calendar(w["date"].min() - pd.Timedelta(days=40), w["date"].max() + pd.Timedelta(days=40)).set_index("date")
     dayinfo = {d.strftime("%Y-%m-%d"): {"dt": r.day_type, "off": bool(r.is_offday)} for d, r in cal.iterrows()}
     land = region_payload("육지", dayinfo)
+    land["surge"] = surge_payload()   # 급등 경보는 육지만 (제주 모델 없음)
 
     perf = {
-        "week": {"models": _table("WZ1_models.csv"), "ens": _table("WZ2_ensembles_2025H2.csv"), "test": _table("WZ3_test2026.csv"),
+        "week": {"models": _table("WZ1_models.csv"),
+                 "ens": [{k: (v.replace("(현업 방식)", "(기존 운영 방식)") if isinstance(v, str) else v) for k, v in r.items()}   # 화면 표기
+                         for r in _table("WZ2_ensembles_2025H2.csv")], "test": _table("WZ3_test2026.csv"),
                  "choice": _json("WZ_choice.json")},
         # 한 달 = R3 mx v2 (2026-10-27 교체, docs/MONTH.md)
         "month": {"models": _table("MX1_models_v2.csv"), "ens": _table("MX2_ensembles_2025_v2.csv"), "test": _table("MX4_test2026_v2.csv"),
@@ -208,10 +244,13 @@ def main():
     }
     t1 = ROOT / "drop_classifier" / "outputs" / "tables"
     docs = {"final": _json("F_final.json"), "metrics": _table("F1_final_metrics.csv"), "nextday": _table("F2_nextday_compare.csv"),
-            "dropTest": _table_at(t1 / "13_final_test2026_육지.csv"), "dropScore": _table_at(t1 / "drop_score_육지.csv"), "dropSelect": _table_at(t1 / "18_team_select_육지.csv")[:10],
+            "dropTest": _table_at(t1 / "13_final_test2026_육지.csv"), "dropScore": _table_at(t1 / "drop_score_육지.csv"), "dropSelect": _table_at(t1 / "22_team_lstm_select_2025_육지.csv")[:8],
+            "surgeScore": _table_at(SURGE_T / "surge_score_육지_15h.csv"),
+            "surgeChoice": {k: v for k, v in _json_at(SURGE_T / "surge_choice_육지_15h.json").items() if k not in ("피처", "부호 고정")},
+            "surgeFeatures": len(_json_at(SURGE_T / "surge_choice_육지_15h.json").get("피처", [])),
             "dropZoo": json.loads(pd.read_csv(t1 / "17_zoo_cv2025_육지.csv").drop(columns=["초"], errors="ignore").head(15)
                                   .round(4).to_json(orient="records", force_ascii=False))}
-    # 팀 비교표 (team_scorecard.py: 2026-01-01 ~ 10-18, 급락 = 휴일·주말) — 계통별로 나눠 참고 문서 개요에
+    # 팀 비교표 (team_scorecard.py: 2026-01-01 ~ 10-18, 급락 = 모든 날 공식 + 휴일·주말 참고) — 계통별로 나눠 참고 문서 개요에
     tp, td, ti = _table("T1_team_price.csv"), _table("T2_team_drop.csv"), _json("T_team.json")
     team = lambda reg: {"price": [r for r in tp if r["계통"] == reg], "drop": [r for r in td if r["계통"] == reg], "info": ti}
     docs["team"] = team("육지")

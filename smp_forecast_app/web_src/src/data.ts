@@ -17,7 +17,13 @@ export type RegionData = {
   }
   dropMeta: DropMeta
 }
+/** 예측 근거 (과제3): 위험을 높이는 쪽 up / 낮추는 쪽 down, 쉬운 문장 */
+export type Why = { t: string; dir: 'up' | 'down' }[]
+export type SurgeLevel = { n: number; k: number; rate: number | null; perMonth: number; lift: number | null }
+export type SurgeData = { past: Record<string, { grade: string; prob: number | null }>; meta: { base: number | null; days: number; warnP: number; strongP: number; warn: SurgeLevel; strong: SurgeLevel }; model: string }
 export type SmpData = RegionData & {
+  surge?: SurgeData | null // 육지만
+  why?: { drop?: Record<string, Why>; surge?: Record<string, Why> } // 과제3 근거 (대상일별, 아직 없음)
   generated: string
   lastRun: string | null
   hasJeju?: boolean
@@ -74,5 +80,7 @@ export const LEVEL: Record<string, { key: 'low' | 'warn' | 'strong'; name: strin
   '없음': { key: 'low', name: '낮음' }, '주의': { key: 'warn', name: '주의' }, '강한 경보': { key: 'strong', name: '경보' }, '경보': { key: 'strong', name: '경보' },
 }
 export const info = (d: string) => D.dayinfo[d] ?? { dt: '', off: false }
-/** 급락 경보 판정 대상: 휴일·주말만 (팀 공통 규칙). 평일은 '대상 아님'으로 표시 */
-export const dropTarget = (d: string) => info(d).off
+// 급락 경보 대상일: 육지는 모든 날(팀 규칙 3, 10/28). 제주는 전체 날 모델(R2)이 나오기 전까지 휴일·주말만
+export const dropTarget = (d: string) => REGION === '육지' || info(d).off
+/** 내일 급등 경보 (R4): 육지만 — 제주를 볼 때는 없음 */
+export const surgeData = (): SurgeData | null => (REGION === '육지' ? ROOT?.surge ?? null : null)

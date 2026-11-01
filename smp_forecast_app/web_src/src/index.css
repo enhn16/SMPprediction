@@ -101,13 +101,20 @@
   /* 조작: 선택 상태 = 파랑 채움 + 흰 글자 (사이드바와 같은 언어) */
   .btn { @apply inline-flex h-8 items-center gap-1.5 rounded-ui bg-track px-3 text-[12.5px] font-semibold text-sub transition hover:bg-brand-soft hover:text-brand-dark; }
   .field { @apply h-9 rounded-ui border border-line bg-surface px-3 text-[13.5px] text-ink outline-none transition focus:border-brand; }
-  .seg { @apply inline-flex max-w-full flex-wrap gap-0.5 rounded-ui bg-track p-[3px]; }
-  .seg > button { @apply h-[30px] rounded-[4px] px-3.5 text-[12.5px] font-semibold text-sub transition hover:text-brand-dark; }
+  .seg { @apply inline-flex max-w-full flex-wrap gap-0.5 rounded-ui bg-surface p-[3px]; }
+  .seg > button { @apply h-[30px] rounded-[4px] px-3.5 text-[12.5px] font-semibold text-sub transition hover:bg-track hover:text-brand-dark; }
   .seg > button[aria-pressed="true"] { @apply bg-brand-dark text-white hover:text-white; }
 
   /* 문서: 한 장 안에서 여백으로 소주제 구분 */
-  .doc-sheet { @apply rounded-panel bg-surface py-2; }
+  /* 문서: 위 = 핵심 지표 박스(Kpis), 아래 = 세부 설명 박스(소주제들을 이어 붙인 한 장) */
+  .doc-sheet > .card { @apply mb-5; }
+  .doc-sheet > .doc-sec { @apply bg-surface; }
+  .doc-sheet > .doc-sec:first-child, .doc-sheet > .card + .doc-sec { @apply rounded-t-panel pt-7; }
+  .doc-sheet > .doc-sec:last-child { @apply rounded-b-panel pb-8; }
   .doc-sec { @apply px-6 py-6 md:px-8; }
+  /* 소주제 사이 구분선: 노션처럼 본문 폭 안쪽에만 (가장자리까지 자르지 않음) */
+  .doc-sec + .doc-sec { @apply relative; }
+  .doc-sec + .doc-sec::before { content: ""; @apply absolute inset-x-6 top-0 h-px bg-line md:inset-x-8; }
   .note { @apply rounded-ui bg-brand-soft px-4 py-3; }
   .prose-doc p, .prose-doc li { @apply max-w-[880px] text-[14px] leading-7 text-ink; }
   .prose-doc ul { @apply list-disc space-y-1 pl-5; }

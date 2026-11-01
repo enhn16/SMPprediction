@@ -244,13 +244,26 @@ def monthly(bases, run_at):
 
 
 def drops(bases, run_at):
-    """내일 급락 경보 (R1 산출, 2026-10-26 교체): ops_drop.predict — Ridge+EBM+RF, 2023~전년도 말 고정 학습,
-    문턱·확률식은 drop_classifier/outputs/tables/drop_choice_육지.json. 등급 값 없음/주의/경보."""
-    from smp_forecast_app.src.ops_drop import predict
-    r = predict(bases)
+    """내일 급락 경보 (R1 산출, 2026-10-28 교체): ops_drop.predict_team — LSTM + LightGBM(확장 변수) 평균(팀 합의),
+    모든 날 대상, 2023~전년도 말 고정 학습, 하루 약 25초. 문턱·확률식은 drop_classifier/outputs/tables/drop_choice_육지.json.
+    이전 모델(Ridge+EBM+RF) 운영 기록은 ops/drop_log_v1_ridge_ebm_rf.csv. 등급 값 없음/주의/경보."""
+    from smp_forecast_app.src.ops_drop import predict_team
+    r = predict_team(bases)
     if len(r):
         r = r.rename(columns={"score": "pred_min"}).assign(run_at=run_at)
         _append("drop_log.csv", r[["run_at", "base_date", "date", "pred_min", "grade", "prob"]], ["date"])
+
+
+def surges(bases, run_at):
+    """내일 급등 경보 (R4 v3, 2026-10-28): surge_classifier.src.ops_surge.predict — 부호 고정 점수 + 스플라인 로지스틱 +
+    LightGBM 그루터기 평균(팀 합의), 15시 하나, 휴무일은 주의·경보 없음. 입력 = 공용 수집 + collect_extra openmeteo. 하루 약 14초."""
+    from surge_classifier.src.ops_surge import predict
+    r = predict(list(bases))
+    if len(r):
+        r = r.assign(run_at=run_at)
+        for c in ("base_date", "date"):
+            r[c] = pd.to_datetime(r[c]).dt.strftime("%Y-%m-%d")
+        _append("surge_log.csv", r[["run_at", "base_date", "date", "grade", "prob", "score"]], ["date"])
 
 
 # ---------------------------------------------------------------- 제주 (제주 채팅이 만든 jz_ops 호출, 육지 산출 뒤)
@@ -339,6 +352,7 @@ def daily():
     run(["common.collect.openmeteo_prevruns", (today - pd.Timedelta(days=5)).strftime("%Y-%m-%d"),
          (today + pd.Timedelta(days=1)).strftime("%Y-%m-%d")])   # D+1 일사·운량 (D-2 실행분, H=1 피처)
     run(["common.collect.kpx_weekly_outlook"])
+    run(["surge_classifier.src.collect_extra", "openmeteo"])   # 급등 v3 입력: Open-Meteo 2일 전 실행 best_match 기온·운량·강수
     collect_accum()
     collect_jeju(today)
     if today.day <= 10:
@@ -356,7 +370,7 @@ def daily():
         log("새 기준일 없음 (이미 산출됨)")
     else:
         log(f"기준일 {bases[0].date()} ~ {bases[-1].date()} ({len(bases)}일) 산출" + (" — 지연 산출 포함" if len(bases) > 1 else ""))
-        for name, fn in (("일주일", weekly), ("한 달", monthly), ("급락 경고", drops)):
+        for name, fn in (("일주일", weekly), ("한 달", monthly), ("급락 경고", drops), ("급등 경보", surges)):
             try:
                 fn(bases, run_at)
                 log(f"{name} 완료")

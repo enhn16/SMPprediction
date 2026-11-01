@@ -1,19 +1,24 @@
-import { useMemo, useState } from 'react'
-import { D, REGION, STAT_NAME, type Stat } from '../data'
+import { useMemo } from 'react'
+import { D, REGION } from '../data'
 import { avg, fmt, lab, md } from '../fmt'
 import { bandOption, EChart } from '../components/Chart'
-import { Card, Legend, PageHeader, Pill, Seg } from '../components/ui'
+import { Card, Legend, PageHeader, Pill } from '../components/ui'
+import { P, mix } from '../theme'
+
+// 하루 모양을 함께 보는 보조 선: 저녁(수요 피크, 따뜻한 색) · 한낮(태양광, 청록)
+const EVE = P.orange, MID = mix(P.cyan, '#000000', 0.35)
 
 export function Month() {
   const M = D.month
-  const [k, setK] = useState<Stat>('mean')
   const n = M.d.length
-  const s = { p: M['p_' + k], lo: M['lo_' + k], hi: M['hi_' + k], y: M['y_' + k] }
+  // 주인공 = 일평균(80% 범위 포함), 한낮·저녁·한낮 최저는 함께 보여 줌 (지표 탭 없음)
+  const s = { p: M.p_mean, lo: M.lo_mean, hi: M.hi_mean, y: M.y_mean }
   const opt = useMemo(() => bandOption({
-    x: M.d, ...s, tip: (i) => `${lab(M.d[i])} ${M.dt[i] && M.dt[i] !== '평일' ? M.dt[i] : ''} · ${STAT_NAME[k]}`,
+    x: M.d, ...s, tip: (i) => `${lab(M.d[i])} ${M.dt[i] && M.dt[i] !== '평일' ? M.dt[i] : ''} · 일평균`,
+    extra: [{ name: '저녁 18~22시', data: M.p_eve, color: EVE }, { name: '한낮 11~15시', data: M.p_mid, color: MID }],
     xLabel: (i) => (i % 2 === 0 ? md(M.d[i]) : ''), symbols: true, daily: true,
     shade: M.d.map((_, i) => i).filter((i) => M.dt[i] && M.dt[i] !== '평일').map((i) => [i, i] as [number, number]), dividers: [7, 14, 21],
-  }), [k])
+  }), [])
   // 주차 평균 (예측·하한·상한)과 범위 막대 공통 눈금
   const weeks = [0, 1, 2, 3].map((w) => {
     const r = [...Array(7).keys()].map((j) => w * 7 + j).filter((j) => j < n)
@@ -28,12 +33,11 @@ export function Month() {
   return (
     <div className="space-y-5">
       <PageHeader eyebrow={`예측 · ${REGION}`} title="한 달 예측" sub={<>7~34일 뒤 일별 SMP와 80% 범위 <Pill tone="gray">참고 전망</Pill></>}
-        meta={[{ k: '기준일', v: <>{M.base} 15시 판단</>, hl: true }, { k: '대상', v: <>{lab(M.d[0])} ~ {lab(M.d[n - 1])}</> }, { k: '지표', v: STAT_NAME[k] }]}
-        right={<Seg value={k} onChange={setK} options={(Object.keys(STAT_NAME) as Stat[]).map((v) => ({ v, t: STAT_NAME[v] }))} />} />
+        meta={[{ k: '기준일', v: <>{M.base} 15시 판단</>, hl: true }, { k: '대상', v: <>{lab(M.d[0])} ~ {lab(M.d[n - 1])}</> }]} />
       {/* 주차 요약: 한 면에 여백으로 4칸, 범위 막대는 네 주 공통 눈금 */}
       <section className="card px-6 py-6 lg:px-7">
         <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-          <h2 className="h-sec">주차별 평균 · {STAT_NAME[k]}</h2>
+          <h2 className="h-sec">주차별 일평균</h2>
           <div className="flex flex-wrap gap-x-5 text-[12.5px]">
             {Object.entries(byMonth).map(([ym, idx]) => (
               <span key={ym} className="text-sub tabular-nums">
@@ -69,19 +73,19 @@ export function Month() {
           })}
         </div>
       </section>
-      <Card title={`일별 예측 · ${STAT_NAME[k]}`} sub="회색 = 휴무일 · 세로선 = 주차 경계"
-        right={<Legend items={[{ t: '80% 범위', c: 'band' }, { t: '예측', c: 'pred' }, { t: '공표 SMP', c: 'act' }, { t: '범위 밖', c: 'out' }]} />}>
+      <Card title="일별 예측" sub="회색 = 휴무일 · 세로선 = 주차 경계"
+        right={<Legend items={[{ t: '일평균 · 80% 범위', c: 'band' }, { t: '일평균 예측', c: 'pred' }, { t: '저녁 18~22시', c: EVE }, { t: '한낮 11~15시', c: MID }, { t: '공표 일평균', c: 'act' }]} />}>
         <EChart option={opt} height={360} />
       </Card>
-      <Card title="일별 표" sub="하한 · 예측 · 상한 · 공표" flush>
+      <Card title="일별 표" sub="일평균(80% 범위) · 한낮 · 저녁 · 한낮 최저 · 공표 일평균" flush>
         <div className="tbl-wrap max-h-[480px]">
           <table className="tbl">
-            <thead className="sticky top-0 z-[1]"><tr><th className="l">날짜</th><th>며칠 뒤</th><th>하한</th><th>예측</th><th>상한</th><th>공표</th></tr></thead>
+            <thead className="sticky top-0 z-[1]"><tr><th className="l">날짜</th><th>며칠 뒤</th><th>일평균</th><th>80% 범위</th><th>한낮 11~15시</th><th>저녁 18~22시</th><th>한낮 최저</th><th>공표 일평균</th></tr></thead>
             <tbody>
               {M.d.map((d: string, i: number) => (
                 <tr key={d}>
                   <td className={`l ${M.dt[i] && M.dt[i] !== '평일' ? 'text-bad' : ''}`}>{lab(d)} {M.dt[i] && M.dt[i] !== '평일' ? M.dt[i] : ''}</td>
-                  <td>{i + 7}</td><td>{fmt(s.lo[i])}</td><td className="font-semibold text-brand-dark">{fmt(s.p[i])}</td><td>{fmt(s.hi[i])}</td><td className="font-semibold">{fmt(s.y[i])}</td>
+                  <td>{i + 7}</td><td className="font-semibold text-brand-dark">{fmt(s.p[i])}</td><td className="text-sub">{fmt(s.lo[i])} ~ {fmt(s.hi[i])}</td><td>{fmt(M.p_mid[i])}</td><td>{fmt(M.p_eve[i])}</td><td>{fmt(M.p_midmin[i])}</td><td className="font-semibold">{fmt(s.y[i])}</td>
                 </tr>
               ))}
             </tbody>

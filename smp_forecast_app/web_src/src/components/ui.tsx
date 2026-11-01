@@ -57,16 +57,22 @@ export function Num({ v }: { v: ReactNode }) {
 }
 
 export type Tone = 'good' | 'bad' | undefined
-const toneCls = (t: Tone) => (t === 'good' ? 'text-good' : t === 'bad' ? 'text-bad' : 'text-ink')
+// 목표 안 = 초록, 목표 밖 = 기본색 (빨강은 급락·급등 경보에만 — 성능 숫자에는 '목표 미달' 글로 표시)
+const toneCls = (t: Tone) => (t === 'good' ? 'text-good' : 'text-ink')
 /** 지표 묶음: 흰 면 하나에 여백으로만 나눔 (선 없음) */
-export function Kpis({ items }: { items: { k: string; v: ReactNode; s?: ReactNode; tone?: Tone }[] }) {
-  const cols = items.length >= 5 ? 'grid-cols-2 md:grid-cols-3 xl:grid-cols-5' : items.length === 4 ? 'grid-cols-2 lg:grid-cols-4' : items.length === 3 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-2'
+export function Kpis({ items }: { items: { k: string; v: ReactNode; s?: ReactNode; tone?: Tone; main?: boolean }[] }) {
+  const lead = Math.max(0, items.findIndex((x) => x.main))   // 대표 지표: main 표시, 없으면 첫 칸
+  // 한 줄에 다 들어가는 폭(bp)에서만 지표 사이 얇은 세로선
+  const [cols, bp] = items.length >= 5 ? ['grid-cols-2 md:grid-cols-3 xl:grid-cols-5', 'xl'] : items.length === 4 ? ['grid-cols-2 lg:grid-cols-4', 'lg']
+    : items.length === 3 ? ['grid-cols-1 sm:grid-cols-3', 'sm'] : ['grid-cols-2', '']
+  const line = { xl: 'xl:border-l xl:border-line xl:pl-6', lg: 'lg:border-l lg:border-line lg:pl-6', sm: 'sm:border-l sm:border-line sm:pl-6', '': 'border-l border-line pl-6' }[bp]
   return (
-    <div className={`card grid gap-x-8 gap-y-5 px-6 py-5 ${cols}`}>
-      {items.map((it) => (
-        <div key={it.k} className="min-w-0">
+    <div className={`card grid gap-x-6 gap-y-5 px-6 py-5 ${cols}`}>
+      {items.map((it, i) => (
+        <div key={it.k} className={`min-w-0 ${i ? line : ''}`}>
+          {/* 라벨 → 핵심 숫자 → 보조 설명. 대표 지표만 진한 파랑, 나머지는 기본색(좋음·나쁨은 색) */}
           <div className="t-label">{it.k}</div>
-          <div className={`v-kpi mt-1.5 ${toneCls(it.tone)}`}><Num v={it.v} /></div>
+          <div className={`v-kpi mt-1.5 ${it.tone ? toneCls(it.tone) : i === lead ? 'text-brand-dark' : 'text-ink'}`}><Num v={it.v} /></div>
           {it.s && <div className="mt-1 text-[11.5px] leading-4 text-mute">{it.s}</div>}
         </div>
       ))}

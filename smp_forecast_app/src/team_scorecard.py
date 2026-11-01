@@ -29,7 +29,7 @@ TAB = ROOT / "smp_forecast_app" / "outputs" / "tables"
 T0, T1 = "2026-01-01", "2026-10-18"
 STATS = {"mean": "일평균", "mid": "한낮 11~15시", "eve": "저녁 18~22시", "midmin": "한낮 최저"}
 SRC = {"육지": {"week": DATA / "WZ_predictions_hourly.csv", "month": DATA / "mx" / "MX_predictions_daily_v2.csv", "drop": ROOT / "drop_classifier" / "outputs" / "tables" / "drop_육지_15h.csv",
-               "model": {"drop": "Ridge+EBM+랜덤포레스트 (예상 한낮 최저)", "week": "Chronos-2 small + 0.5 × 잔차 보정",
+               "model": {"drop": "LSTM + LightGBM(확장 변수) 평균 (예상 한낮 최저)", "week": "Chronos-2 small + 0.5 × 잔차 보정",
                          "month": "mx v2: Chronos 3종·LSTM·GRU 조합 (저녁은 9개 모델 가중)"}},
        "제주": {"week": DATA / "jeju" / "JWZ_predictions_hourly.csv", "month": DATA / "jeju" / "JMZ_predictions_daily.csv",
                "drop": DATA / "jeju" / "drop_badge_제주.csv",
@@ -89,11 +89,16 @@ def drop_stats(y, s):
             "헛경보@재현율80%": fa_at(y, s, .8), "헛경보@재현율90%": fa_at(y, s, .9)}
 
 
-def drop_rows(region, n_boot=2000):
+SCOPES = ("전체 날 (공식)", "휴일·주말")   # 팀 규칙 3 (10/28): 급락은 모든 날, 휴일·주말은 참고 행
+
+
+def drop_rows(region, scope=SCOPES[0], n_boot=2000):
     d = pd.read_csv(SRC[region]["drop"], parse_dates=["date"])
-    d = d[in_test(d["date"])].dropna(subset=["label"])
-    off = build_calendar(T0, T1).set_index("date")["is_offday"].astype(bool)
-    d = d[d["date"].map(off).values]                                   # 팀 규칙: 휴일·주말만
+    d = d[in_test(d["date"])]
+    off = d["date"].map(build_calendar(T0, T1).set_index("date")["is_offday"].astype(bool)).values
+    if scope == SCOPES[0] and d.loc[~off, "label"].isna().all():
+        return None                                                    # 평일 레이블이 없으면(전체 날 산출 전) 공식 행을 내지 않음
+    d = (d if scope == SCOPES[0] else d[off]).dropna(subset=["label"])
     y = d["label"].astype(int).values
     s = (-d["score"] if region == "육지" else d["prob"]).values      # 위험 점수 (육지 = −예상 한낮 최저, 확률과 순서 같음)
     st = drop_stats(y, s)
@@ -103,7 +108,7 @@ def drop_rows(region, n_boot=2000):
         if 3 <= y[i].sum() < len(i):
             bs.append(drop_stats(y[i], s[i]))
     bs = pd.DataFrame(bs)
-    row = {"계통": region, "모델": SRC[region]["model"]["drop"], "일수": len(y), "급락일": int(y.sum()), **st,
+    row = {"계통": region, "범위": scope, "모델": SRC[region]["model"]["drop"], "일수": len(y), "급락일": int(y.sum()), **st,
            "무작위 PR-AUC": y.mean(), "PR-AUC 배수": st["PR-AUC"] / y.mean(),   # 급락 비율이 계통마다 달라 배수로도 비교 (R4 제안)
            "Brier": brier_score_loss(y, d["prob"])}
     bs["PR-AUC 배수"] = bs["PR-AUC"] / y.mean()
@@ -118,12 +123,12 @@ def drop_rows(region, n_boot=2000):
 
 def main():
     price = pd.DataFrame([r for reg in SRC for r in price_rows(reg)])
-    drop = pd.DataFrame([drop_rows(reg) for reg in SRC])
+    drop = pd.DataFrame([r for reg in SRC for sc in SCOPES if (r := drop_rows(reg, sc)) is not None])
     price.round(4).to_csv(TAB / "T1_team_price.csv", index=False, encoding="utf-8-sig")
     drop.round(4).to_csv(TAB / "T2_team_drop.csv", index=False, encoding="utf-8-sig")
-    info = {"시험 기간": f"{T0} ~ {T1}", "급락일": "휴일·주말만, 11~15시 최저 SMP 30원 미만",
+    info = {"시험 기간": f"{T0} ~ {T1}", "급락일": "모든 날(평일 포함), 11~15시 최저 SMP 30원 미만 — 공식 = 전체 날, 휴일·주말은 참고 (제주는 전체 날 산출 전이라 휴일·주말만)",
             "모델": {reg: v["model"] for reg, v in SRC.items()},
-            "학습 기간 (현재 모델, 팀 규칙 2023~ 과 다름)": {"육지 급락": "2023~2025 (R1, 팀 규칙)", "제주 급락": "2024~2025",
+            "학습 기간 (현재 모델, 팀 규칙 2023~ 과 다름)": {"육지 급락": "2023~2025 (R1, 팀 합의 구성, 전체 날 문턱)", "제주 급락": "2024~2025",
                                                    "일주일 잔차 보정": "2023~ (매월 재학습)", "한 달 mx v2": "2023~ (표 모델 매월, LSTM·GRU 분기 재학습)"},
             "주의": "현재 모델의 2026 성적은 모델을 고른 뒤 처음 채점한 값. 경보 문턱은 평일 포함으로 정했음"}
     (TAB / "T_team.json").write_text(json.dumps(info, ensure_ascii=False, indent=1), encoding="utf-8")

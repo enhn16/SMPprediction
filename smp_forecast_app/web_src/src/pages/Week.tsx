@@ -1,48 +1,25 @@
-import React, { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { D, REGION } from '../data'
-import { avg, fmt, inside, lab, md, pct } from '../fmt'
+import { avg, fmt, inside, lab, pct } from '../fmt'
 import { bandOption, EChart } from '../components/Chart'
-import { DropMeter } from '../components/Drop'
+import { Alerts } from '../components/Alerts'
 import { Card, Legend, PageHeader } from '../components/ui'
 import { LV } from '../theme'
 
-/** 최근 7일(공표가 있는 날) 하루 전 예측 성적 — 지금 예측을 얼마나 믿을지 가늠 */
-function RecentScore() {
+/** 최근 7일(공표가 있는 날) 하루 전 예측 성적 한 줄 — 지금 예측을 얼마나 믿을지 가늠 */
+function recentText() {
   const src = D.past.hourly['1'] ?? {}
   const ds = Object.keys(src).filter((d) => (D.past.actual[d] ?? []).some((v) => v != null)).sort().slice(-7)
   if (!ds.length) return null
-  const e: number[] = [], inn: boolean[] = [], lo: boolean[] = []
+  const e: number[] = [], inn: boolean[] = []
   ds.forEach((d) => {
     const [p, l, h] = src[d], y = D.past.actual[d]
     y.forEach((v, i) => {
       if (v == null || p[i] == null || l[i] == null || h[i] == null) return
-      e.push(Math.abs(v - (p[i] as number))); inn.push(inside(v, l[i], h[i])); lo.push(v < (l[i] as number))
+      e.push(Math.abs(v - (p[i] as number))); inn.push(inside(v, l[i], h[i]))
     })
   })
-  const cov = inn.filter(Boolean).length / inn.length, below = lo.filter(Boolean).length / lo.length
-  const good = cov >= 0.75 && cov <= 0.85
-  const items: [string, React.ReactNode, string, string?][] = [
-    ['평균 오차', <>{fmt(avg(e))}<span className="unit">원</span></>, '공표 − 예측 절댓값'],
-    ['80% 범위 포함률', <>{pct(cov).replace('%', '')}<span className="unit">%</span></>, '목표 75~85%', good ? 'text-good' : 'text-bad'],
-    ['하한 아래 · 상한 위', <>{pct(below).replace('%', '')}<span className="mx-1 text-mute">/</span>{pct(1 - cov - below).replace('%', '')}<span className="unit">%</span></>, '각각 약 10%가 균형'],
-  ]
-  return (
-    <div>
-      <div className="flex flex-wrap items-baseline gap-x-2">
-        <h2 className="h-sec">최근 성적</h2>
-        <span className="muted tabular-nums">{md(ds[0])} ~ {md(ds[ds.length - 1])} · {ds.length}일 · 하루 전 예측</span>
-      </div>
-      <dl className="mt-4 grid grid-cols-3 gap-x-6 gap-y-4">
-        {items.map(([k, v, s, c]) => (
-          <div key={k} className="min-w-0">
-            <dt className="t-label">{k}</dt>
-            <dd className={`v-kpi mt-1.5 ${c ?? 'text-ink'}`}>{v}</dd>
-            <dd className="mt-1 text-[11.5px] leading-4 text-mute">{s}</dd>
-          </div>
-        ))}
-      </dl>
-    </div>
-  )
+  return `오차 ${fmt(avg(e))}원 · 범위 포함 ${pct(inn.filter(Boolean).length / inn.length, 0)}`
 }
 
 export function Week() {
@@ -68,12 +45,8 @@ export function Week() {
   return (
     <div className="space-y-5">
       <PageHeader eyebrow={`예측 · ${REGION}`} title="일주일 예측" sub="내일부터 7일 동안의 시간별 SMP와 80% 범위"
-        meta={[{ k: '기준일', v: <>{W.base} 15시 판단</>, hl: true }, { k: '대상', v: <>{lab(days[0].date)} ~ {lab(days[days.length - 1].date)}</> }, { k: '범위', v: '80%' }]} />
-      {/* 내일 상황 한 면: 급락 경보(넓게) + 최근 성적. 나중에 급등 경보도 이 면에 */}
-      <section className="card grid gap-x-12 gap-y-8 px-6 py-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:px-7">
-        <DropMeter d={W.drop} date={lab(days[0].date)} iso={days[0].date} />
-        <RecentScore />
-      </section>
+        meta={[{ k: '기준일', v: <>{W.base} 15시 판단</>, hl: true }, { k: '대상', v: <>{lab(days[0].date)} ~ {lab(days[days.length - 1].date)}</> }, { k: '범위', v: '80%' }, ...(recentText() ? [{ k: '최근 7일 정확도', v: recentText() }] : [])]} />
+      <Alerts iso={days[0].date} />
       <section className="card">
         <div className="panel-head">
           <div className="flex flex-wrap items-baseline gap-x-3">
@@ -127,8 +100,8 @@ export function Week() {
         ) : null}
       </Card>
       {REGION === '제주'
-        ? <p className="muted">제주 가격은 대부분의 시간에 육지와 같아(2026년 91%) 육지 일주일 예측에 제주 잔차 보정(0.25배)을 더해 냅니다. 범위 하한은 음수 가격이 있어 0원에서 자르지 않습니다. 위의 급락 경보는 과제1 제주 모델(KNN 분류)이 따로 계산합니다.</p>
-        : <p className="muted">내일(첫날) 시간별 가격은 일주일 모델(Chronos-2 small + 잔차 보정)의 D+1입니다. 위의 급락 경보는 과제1 모델이 따로 계산합니다.</p>}
+        ? <p className="muted">제주 가격은 대부분의 시간에 육지와 같아(2026년 91%) 육지 일주일 예측에 제주 잔차 보정(0.25배)을 더해 냅니다. 범위 하한은 음수 가격이 있어 0원에서 자르지 않습니다. 위의 급락·급등 경보는 별도 모델이 계산합니다.</p>
+        : <p className="muted">내일(첫날) 시간별 가격은 일주일 모델(Chronos-2 small + 잔차 보정)의 D+1입니다. 위의 급락·급등 경보는 별도 모델이 계산합니다.</p>}
     </div>
   )
 }

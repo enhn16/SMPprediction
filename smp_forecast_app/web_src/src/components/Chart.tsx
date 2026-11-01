@@ -31,6 +31,7 @@ const tipRow = (k: string, v: string, color?: string) =>
 export function bandOption(o: {
   x: string[]; p: N[]; lo: N[]; hi: N[]; y: N[]; tip: (i: number) => string
   shade?: [number, number][]; dividers?: number[]; xLabel?: (i: number) => string; zoom?: boolean; symbols?: boolean; daily?: boolean
+  extra?: { name: string; data: N[]; color: string; dash?: boolean }[]   // 범위 없이 함께 그릴 보조 선 (한 달: 저녁·한낮)
 }): echarts.EChartsCoreOption {
   const n = o.x.length
   const lo = o.lo.map((v) => v ?? null), diff = o.hi.map((v, i) => (v != null && o.lo[i] != null ? (v as number) - (o.lo[i] as number) : null))
@@ -52,6 +53,7 @@ export function bandOption(o: {
         return `<div style="font-weight:700;margin-bottom:4px">${o.tip(i)}</div><table>`
           + tipRow('예측', fmt(o.p[i])) + tipRow('80% 범위', `${fmt(o.lo[i])} ~ ${fmt(o.hi[i])}`)
           + (y != null ? tipRow('공표', `${fmt(y)} <span style="opacity:.75">(${(d as number) > 0 ? '+' : ''}${fmt(d)})</span>`) : '')
+          + (o.extra ?? []).map((e) => tipRow(e.name, fmt(e.data[i]))).join('')
           + (out ? tipRow('', '범위 밖', C.tooltipBad) : '') + '</table>'
       },
     },
@@ -72,6 +74,7 @@ export function bandOption(o: {
       { name: '공표', type: 'line', data: o.y, symbol: o.symbols ? 'circle' : 'none', symbolSize: 4, itemStyle: { color: C.ink }, lineStyle: { color: C.ink, width: 1.8 }, z: 4 },
       ...(o.daily && o.shade?.length ? [{ name: 'shade', type: 'bar', yAxisIndex: 1, silent: true, barWidth: '100%', z: 0, itemStyle: { color: C.shade },
         data: o.x.map((_, i) => (o.shade!.some(([a, b]) => i >= a && i <= b) ? 1 : null)) }] : []),
+      ...(o.extra ?? []).map((e) => ({ name: e.name, type: 'line', data: e.data, symbol: 'none', z: 2, lineStyle: { color: e.color, width: 1.5, type: e.dash ? 'dashed' : 'solid' } })),
       { name: '범위 밖', type: 'scatter', data: outPts, symbolSize: 6, itemStyle: { color: C.bad }, z: 5, silent: true },
     ],
   }
