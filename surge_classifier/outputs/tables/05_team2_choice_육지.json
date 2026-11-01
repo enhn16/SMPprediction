@@ -1,0 +1,101 @@
+{
+ "모델": "팀 합의 급등 모델 v2 (팀원 spike_simple3 재구현, 입력 = 팀 13종)",
+ "피처": [
+  "dow",
+  "is_off",
+  "is_holiday",
+  "is_major",
+  "after_off",
+  "off_run_len",
+  "month_sin",
+  "month_cos",
+  "ref_max",
+  "prev_max",
+  "prev_max_rel",
+  "prev_mean_rel",
+  "prev_evening_rel",
+  "max7_rel",
+  "vol7",
+  "spikes_28d",
+  "spikes_90d",
+  "days_since_spike",
+  "prev_dem_max",
+  "prev_dem_rel28",
+  "same_type_dem_rel28",
+  "dem_trend7",
+  "wx_tmax",
+  "wx_tmin",
+  "wx_tmean",
+  "wx_hdd",
+  "wx_cdd",
+  "wx_tchg",
+  "wx_cloud",
+  "wx_precip",
+  "peak60_rel",
+  "near_peak_28",
+  "prev_max_vs_q90",
+  "prev_high_hours",
+  "ref_change28",
+  "ref_vs_year",
+  "prev_excess"
+ ],
+ "부호": {
+  "prev_max_rel": 1,
+  "prev_evening_rel": 1,
+  "max7_rel": 1,
+  "vol7": 1,
+  "spikes_28d": 1,
+  "spikes_90d": 1,
+  "days_since_spike": -1,
+  "prev_dem_rel28": 1,
+  "same_type_dem_rel28": 1,
+  "dem_trend7": 1,
+  "is_off": -1,
+  "is_holiday": -1,
+  "wx_hdd": 1,
+  "wx_cdd": 1,
+  "peak60_rel": 1,
+  "near_peak_28": 1,
+  "prev_max_vs_q90": 1,
+  "prev_high_hours": 1,
+  "prev_excess": 1
+ },
+ "그루터기": {
+  "n_estimators": 200,
+  "learning_rate": 0.03,
+  "max_depth": 1,
+  "num_leaves": 2,
+  "min_child_samples": 20,
+  "subsample": 0.8,
+  "subsample_freq": 1,
+  "colsample_bytree": 0.8,
+  "class_weight": "balanced",
+  "random_state": 42,
+  "verbose": -1
+ },
+ "스플라인": "StandardScaler → SplineTransformer(n_knots=4, degree=3, constant) → LogisticRegression(C=0.05, balanced)",
+ "결합": "세 확률(0~1) 단순 평균",
+ "문턱": {
+  "sign": {
+   "주의": 0.5,
+   "경보": 0.75
+  },
+  "spline": {
+   "주의": 0.29,
+   "경보": 0.76
+  },
+  "stump": {
+   "주의": 0.17,
+   "경보": 0.77
+  },
+  "avg": {
+   "주의": 0.37,
+   "경보": 0.7
+  }
+ },
+ "검증": "2024-01 ~ 2025-12 매달 앞으로만 (학습 2023-01-01 ~ 전달 말)",
+ "최종 학습": [
+  "2023-01-01",
+  "2025-12-31"
+ ]
+}

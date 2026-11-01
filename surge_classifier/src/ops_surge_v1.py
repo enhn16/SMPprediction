@@ -1,4 +1,4 @@
-"""운영용 내일 급등 경보 (육지) — ROLES.md 4.1 운영 함수.
+"""[기록용, 2026-10-28 v3로 교체됨] 예전 운영 함수 — 지수식(15h)·공표 확정(21h). 파일 이름 *_v1_index·*_v1.
 
 predict(bases, stage) -> DataFrame[base_date, date, stage, grade, prob, score]
 - bases: 판단일 목록 (대상일 = 판단일 + 1). 판단일까지 자료만 쓴다 (features.build가 D-1 이전 값만 만듦).
@@ -7,7 +7,7 @@ predict(bases, stage) -> DataFrame[base_date, date, stage, grade, prob, score]
        ② 없으면 2차 선택 결과(surge_choice_육지_21h.json) 적용 — 2026-10-26 선택은 1차와 같은 지수(내일 수요예측 미사용)
 - 운영 기록 폴더는 건드리지 않는다. 호출 순서: (매일 수집 끝난 뒤) predict([오늘], "15h") 15:30, predict([오늘], "21h") 21:30·23:30.
 
-검증: python -m surge_classifier.src.ops_surge  → 백테스트 파일(surge_육지_{stage}.csv)과 2026 행이 같은지, 소요 시간
+검증: python -m surge_classifier.src.ops_surge_v1  → 백테스트 파일(surge_육지_{stage}.csv)과 2026 행이 같은지, 소요 시간
 """
 import json
 import time
@@ -19,10 +19,11 @@ from surge_classifier.src.features import build
 from surge_classifier.src.label_days import OUT_TAB, RATIO
 
 REGION = "육지"
+SUFFIX = {"15h": "_v1_index", "21h": "_v1"}
 
 
 def _choice(stage: str) -> dict:
-    return json.loads((OUT_TAB / f"surge_choice_{REGION}_{stage}.json").read_text(encoding="utf-8"))
+    return json.loads((OUT_TAB / f"surge_choice_{REGION}_{stage}{SUFFIX[stage]}.json").read_text(encoding="utf-8"))
 
 
 def _index(d: pd.DataFrame, ch: dict) -> np.ndarray:
@@ -68,7 +69,7 @@ def main():
     t_feat = time.time() - t0
     last = feats.loc[feats["ratio"].notna(), "date"].max()
     for stage in ("15h", "21h"):
-        bt = pd.read_csv(OUT_TAB / f"surge_{REGION}_{stage}.csv", dtype={"base_date": str, "date": str})
+        bt = pd.read_csv(OUT_TAB / f"surge_{REGION}_{stage}{SUFFIX[stage]}.csv", dtype={"base_date": str, "date": str})
         bt = bt[bt["date"] >= "2026-01-01"]
         t1 = time.time()
         p = predict(pd.to_datetime(bt["base_date"]), stage, feats)

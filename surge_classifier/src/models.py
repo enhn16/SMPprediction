@@ -12,7 +12,8 @@
 최종: 2023~2025 재학습 → 2026-01-01 ~ 10-18 한 번 채점 (team_scorecard.py와 같은 지표)
 2차(21h): 판단일이 화요일이 아니면 내일 공표 SMP로 확정(최고 ÷ 기준 ≥ 1.25 → 경보). 화요일 판단(수요일 대상)은 미공표로 보고
       2차 모델(1차 피처 + 내일 수요예측) — 같은 절차로 2025 전체 날(미공표로 가정)에서 선택.
-출력 (outputs/tables): 03_select_육지_{stage}.csv, surge_육지_{stage}.csv, surge_choice_육지_{stage}.json, surge_score_육지_{stage}.csv
+출력 (outputs/tables): 03_select_육지_{stage}.csv, surge_육지_{stage}{SUFFIX}.csv, surge_choice_육지_{stage}{SUFFIX}.json,
+      surge_score_육지_{stage}{SUFFIX}.csv — 2026-10-28 v3(팀 합의 모델) 교체 후 기록용 이름 (15h = _v1_index, 21h = _v1)
 실행: python -m surge_classifier.src.models [15h|21h]   (기본 둘 다)
 """
 import json
@@ -55,6 +56,7 @@ FEATS = {"F0 달력·SMP·수요": F0,
          "F1 +날씨·주간전망": F0 + WEATHER + OUTLOOK,
          "F2 +Open-Meteo·설비·연료비": F0 + WEATHER + OUTLOOK + OPENMETEO + SUPPLY,
          "F3 순부하 핵심": CORE}
+SUFFIX = {"15h": "_v1_index", "21h": "_v1"}   # 2026-10-28 v3 교체 후 기록용 파일 이름
 TIE_REL = 0.05   # 1위의 5% 이내면 동점권 (급락의 0.03 ≈ PR-AUC 0.6의 5%)
 
 # 학습 없는 순부하 지수 (2026-10-26 2025 검증에서 학습 모델이 모두 기준선에 못 미쳐 추가).
@@ -350,14 +352,14 @@ def run(stage: str, df: pd.DataFrame | None = None):
             sub(in_te, f"2026 시험 {TEST[0]} ~ {TEST[1]} · 운영 전체 (확인 + 예측 섞임, 예측 성능 아님)")
     score = pd.DataFrame(rows)
     score.insert(0, "모델", f"{mname} ({fname})")
-    score.round(4).to_csv(OUT_TAB / f"surge_score_{REGION}_{stage}.csv", index=False, encoding="utf-8-sig")
+    score.round(4).to_csv(OUT_TAB / f"surge_score_{REGION}_{stage}{SUFFIX[stage]}.csv", index=False, encoding="utf-8-sig")
 
     # 4) 4.1 형식 일별 파일 (2025 = 2023~2024 학습 예측, 2026~ = 2023~2025 학습 예측)
     out = pd.DataFrame({"base_date": both["base_date"].dt.strftime("%Y-%m-%d"),
                         "date": both["date"].dt.strftime("%Y-%m-%d"), "stage": stage, "grade": both["grade"],
                         "prob": both["prob"].round(4), "score": both["mscore"].round(4),
                         "label": both["label"].map(lambda v: "" if pd.isna(v) else str(int(v)))})
-    out.to_csv(OUT_TAB / f"surge_{REGION}_{stage}.csv", index=False, encoding="utf-8-sig")
+    out.to_csv(OUT_TAB / f"surge_{REGION}_{stage}{SUFFIX[stage]}.csv", index=False, encoding="utf-8-sig")
     unit = (lambda s: round(float(np.exp(s)), 4)) if (not is_index and IS_REG[mname]) else (lambda s: round(s, 4))
     if is_index:
         icols, wk_only = (INDEX | INDEX_21H)[mname]
@@ -384,7 +386,7 @@ def run(stage: str, df: pd.DataFrame | None = None):
         choice["2차 규칙"] = ("판단일이 화요일이 아니면 내일 공표 SMP로 확정 (최고 ÷ 기준 ≥ 1.25 → 경보, prob 1/0, score = 실제 비율). "
                           "화요일 판단(수요일 대상)은 미공표로 보고 2차 모델(1차 피처 + 내일 수요예측). "
                           "운영: 공표 SMP 있으면 확정 → 없고 내일 수요예측 있으면 2차 모델 → 둘 다 없으면 1차 모델 값")
-    (OUT_TAB / f"surge_choice_{REGION}_{stage}.json").write_text(json.dumps(choice, ensure_ascii=False, indent=1),
+    (OUT_TAB / f"surge_choice_{REGION}_{stage}{SUFFIX[stage]}.json").write_text(json.dumps(choice, ensure_ascii=False, indent=1),
                                                                  encoding="utf-8")
     show = ["구간", "경보", "일수", "급등일", "PR-AUC", "무작위 PR-AUC", "PR-AUC 배수", "PR-AUC 배수 95%하한",
             "PR-AUC 배수 95%상한", "ROC-AUC", "헛경보@재현율80%",

@@ -95,13 +95,14 @@ TEAM_START = "2023-01-01"
 def predict(bases, expanding: bool = False, dfe: pd.DataFrame | None = None) -> pd.DataFrame:
     """기준일(base_date) 15시 판단 → 다음 날 급락 경보. 열: base_date, date, grade(없음/주의/경보), prob, score(예상 한낮 최저 원).
 
-    모델·문턱·확률식 = drop_classifier/outputs/tables/drop_choice_육지.json (team_final.py).
+    모델·문턱·확률식 = drop_classifier/outputs/tables/drop_choice_육지_v1_ridge_ebm_rf.json (team_final.py).
+    (2026-10-28: drop_choice_육지.json이 팀 합의 모델(predict_team)로 바뀌어, 이 함수는 보관본을 읽어 동작을 그대로 유지)
     학습: 기본 = 대상일 전년도 말까지 고정 (2026 대상 → 2023~2025, 2025 대상 → 2023~2024, 백테스트와 같음).
           expanding=True면 2023-01-01 ~ 기준일까지 확정된 날 전부 (매일 재학습).
     같은 학습 구간끼리 한 번만 학습. 피처가 없는 날(내일 행 미생성)은 빠진다.
     """
     from drop_classifier.src.zoo import BASES
-    ch = _json.loads((_ROOT / "drop_classifier" / "outputs" / "tables" / "drop_choice_육지.json").read_text(encoding="utf-8"))
+    ch = _json.loads((_ROOT / "drop_classifier" / "outputs" / "tables" / "drop_choice_육지_v1_ridge_ebm_rf.json").read_text(encoding="utf-8"))
     warn, strong = ch["문턱"]["주의"], ch["문턱"]["경보"]
     a, b = ch["확률식"]["a"], ch["확률식"]["b"]
     if dfe is None:
@@ -119,6 +120,57 @@ def predict(bases, expanding: bool = False, dfe: pd.DataFrame | None = None) -> 
         tr = dfe[dfe["label"].notna() & dfe["date"].between(TEAM_START, end)]
         te = dfe[dfe["date"].isin([d for _, d in pairs])].set_index("date")
         pm = pd.Series(-np.mean([BASES[m](tr, te.reset_index()) for m in MEMBERS], axis=0), index=te.index)
+        for I, d1 in pairs:
+            p = float(pm[d1])
+            rows.append({"base_date": I.strftime("%Y-%m-%d"), "date": d1.strftime("%Y-%m-%d"),
+                         "grade": "경보" if p <= strong else "주의" if p <= warn else "없음",
+                         "prob": round(1 / (1 + np.exp(-(a * -p + b))), 4), "score": round(p, 1)})
+    return pd.DataFrame(rows, columns=["base_date", "date", "grade", "prob", "score"])
+
+
+# ---------------------------------------------------------------- 팀 합의 모델 (2026-10-28): LSTM + LightGBM(확장 변수) 평균
+def team_features(dfe: pd.DataFrame | None = None) -> pd.DataFrame:
+    """drop_features(2023~, 내일 행 포함) + 연료비 + SMP 최근 7일 최고·평균 + 시간별 SMP 168·336시간 흐름.
+    team_lstm.data()와 같은 정의 — 엑셀 대신 load_smp_actual(엑셀 + 이후 공표값, 육지는 엑셀과 전부 같음)로 내일 행까지 만든다."""
+    from drop_classifier.src.fuel_level import fuel_features
+    from drop_classifier.src.team_lstm import add_seqs
+    df = (drop_features(TEAM_START) if dfe is None else dfe).copy()
+    s = load_smp_actual("육지")
+    daily = s.groupby("date")["smp"].agg(["max", "mean"])
+    daily = daily.reindex(pd.date_range(daily.index.min(), daily.index.max() + pd.Timedelta(days=1)))
+    roll = daily.rolling(7, min_periods=5).mean().shift(1)            # D일 값 = D-7 ~ D-1 평균 (fuel_level.level_features와 같음)
+    df["smp_max7"], df["smp_mean7"] = roll["max"].reindex(df["date"]).values, roll["mean"].reindex(df["date"]).values
+    df = pd.concat([df.reset_index(drop=True), fuel_features(df["date"])], axis=1)
+    return add_seqs(df, s)
+
+
+def predict_team(bases, dfe: pd.DataFrame | None = None) -> pd.DataFrame:
+    """기준일(base_date) 15시 판단 → 다음 날 급락 경보 (팀 합의 모델). 열: base_date, date, grade(없음/주의/경보), prob, score(예상 한낮 최저 원).
+
+    모델·문턱·확률식 = drop_classifier/outputs/tables/drop_choice_육지.json (team_lstm.py final --official).
+    LSTM(직전 168시간 SMP + 표 피처)과 LightGBM(표 피처 + 연료비 + SMP 7일 수준)이 각각 한낮 최저 SMP를 예측 → 평균.
+    학습: 대상일 전년도 말까지 고정 (2026 대상 → 2023~2025, 2025 대상 → 2023~2024, 백테스트와 같음).
+    같은 학습 구간끼리 한 번만 학습(LSTM 시드 5개 포함 약 30~40초). dfe = team_features() 결과를 넘기면 피처 생성을 건너뜀.
+    """
+    from drop_classifier.src.team_lstm import combine, lgbm, lstm
+    ch = _json.loads((_ROOT / "drop_classifier" / "outputs" / "tables" / "drop_choice_육지.json").read_text(encoding="utf-8"))
+    cfg = ch["세부 선택"]
+    warn, strong = ch["문턱"]["주의"], ch["문턱"]["경보"]
+    a, b = ch["확률식"]["a"], ch["확률식"]["b"]
+    if dfe is None:
+        dfe = team_features()
+    have = set(dfe["date"])
+    jobs = {}
+    for I in pd.to_datetime(pd.Series(bases)).drop_duplicates():
+        d1 = I + pd.Timedelta(days=1)
+        if d1 in have:
+            jobs.setdefault(min(I, pd.Timestamp(f"{d1.year - 1}-12-31")), []).append((I, d1))
+    rows = []
+    for end, pairs in jobs.items():
+        tr = dfe[dfe["label"].notna() & dfe["date"].between(TEAM_START, end)]
+        te = dfe[dfe["date"].isin([d for _, d in pairs])]
+        s = combine(lstm(tr, te, cfg["target"], cfg["seq"]), lgbm(tr, te, cfg["target"], cfg["x"]), cfg["target"], cfg["comb"])
+        pm = pd.Series(-s, index=te["date"].values)                      # 예상 한낮 최저 (원)
         for I, d1 in pairs:
             p = float(pm[d1])
             rows.append({"base_date": I.strftime("%Y-%m-%d"), "date": d1.strftime("%Y-%m-%d"),
