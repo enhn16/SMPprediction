@@ -1,0 +1,8 @@
+﻿가정,후보,추가 열,피처 수,헛경보@80% 2023~2024학습,헛경보@90% 2023~2024학습,PR-AUC 2023~2024학습,평일 헛경보@80% 2023~2024학습,헛경보@80% 2024학습,헛경보@90% 2024학습,PR-AUC 2024학습,평일 헛경보@80% 2024학습,헛경보@80% 나쁜쪽,PR-AUC 나쁜쪽,채택
+-,기준 (운영 구성),,0,21,39,0.4474,0,23,40,0.4609,1,23,0.4474,
+S1,V1 계단,"vc_cap_lt30_gw, vc_step1_cost, vc_coal_min, vc_coal_med, vc_lngd_min, vc_lng_med",6,23,45,0.4607,0,34,82,0.4556,4,34,0.4556,
+S1,V2 위치,"vc_net_gw, vc_net_margin_gw, vc_net_step_cost",3,26,44,0.4136,0,32,46,0.4154,2,32,0.4136,
+S1,V3 계단+위치,"vc_cap_lt30_gw, vc_step1_cost, vc_coal_min, vc_coal_med, vc_lngd_min, vc_lng_med, vc_net_gw, vc_net_margin_gw, vc_net_step_cost",9,27,48,0.4126,0,37,63,0.4251,5,37,0.4126,
+S2,V1 계단,"vc_cap_lt30_gw, vc_step1_cost, vc_coal_min, vc_coal_med, vc_lngd_min, vc_lng_med",6,22,45,0.4511,0,29,71,0.4526,1,29,0.4511,
+S2,V2 위치,"vc_net_gw, vc_net_margin_gw, vc_net_step_cost",3,26,40,0.415,0,34,52,0.4339,2,34,0.415,
+S2,V3 계단+위치,"vc_cap_lt30_gw, vc_step1_cost, vc_coal_min, vc_coal_med, vc_lngd_min, vc_lng_med, vc_net_gw, vc_net_margin_gw, vc_net_step_cost",9,27,45,0.4425,0,40,79,0.4045,6,40,0.4045,
