@@ -39,13 +39,9 @@ function Card({ kind, lv, prob, date, sub, why, note, warn, strong }: { kind: 'd
         {lv === 'na' && <span className="text-[13px] text-sub">{note}</span>}
       </div>
       {lv !== 'na' && prob != null && <Meter lv={lv} p={prob} warn={warn} strong={strong} />}
-      {/* 근거: 모델이 점수에 쓴 이유 중 확실한 것만 1~3줄. 근거가 없으면 회색 문장 한 줄, 자료가 없으면(제주 등) 표시 안 함 */}
+      {/* 근거: 판정과 같은 방향만 1~3줄 (주의·경보 = 평소보다 높인 ▲, 낮음 = 위험했던 날보다 낮춘 ▼). 문턱 넘는 근거가 없으면 회색 고정 문장, 자료가 없으면(제주 등) 표시 안 함 */}
       {lv !== 'na' && why && why.length > 0 && (
         <ul className="mt-2 space-y-1">
-          {/* 낮음인데 근거가 모두 위험을 높이는 쪽이면: 평소보다 조금 높을 뿐 주의 문턱에는 못 미친다는 걸 먼저 밝힘 */}
-          {lv === 'low' && why.every((r) => r.dir === 'up') && (
-            <li className="text-[13px] leading-5 text-mute">평소보다 위험을 높인 점이 있지만 주의 수준에는 못 미칩니다</li>
-          )}
           {why.slice(0, 3).map((r) => r.dir === 'none' ? (
             <li key={r.t} className="text-[13px] leading-5 text-mute">{r.t}</li>
           ) : (

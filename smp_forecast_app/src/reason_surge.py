@@ -1,12 +1,14 @@
 """과제3 예측 근거 문장 — 내일 급등 경보 (육지, 팀 합의 v3: 부호 고정 점수 + 스플라인 로지스틱 + LightGBM 그루터기 확률 평균).
 R5 담당, 모델 코드·결과는 읽기만 (저장된 v3_models.pkl을 그대로 씀).
 
-점수 = 세 확률의 평균, 휴무일 = 0 → 평일만 판단하므로 비교 기준 = 평소 평일 (2023~2025 학습 구간 평일 평균).
+점수 = 세 확률의 평균, 휴무일 = 0 → 평일만 판단. 비교 대상은 결과에 따라 고름 ('왜 이렇게 나왔나', 사용자 2026-11-02):
+  · 주의·경보 → 평소 평일(2023~2025 학습 구간 평일)과 비교해 위험을 높인 근거(up)만
+  · 없음     → 급등했던 평일(학습 구간 급등일)과 비교해 위험을 낮춘 근거(down)만 (휴무일은 고정 한 줄)
 세 모델 모두 로짓이 피처별 항의 합이라 기여가 정확함:
   · 부호 고정: 기울기 × 부호 × z ÷ 피처 수
   · 스플라인: 피처마다 기저함수 계수 × 기저값 (피처끼리 섞이지 않음)
   · 그루터기: pred_contrib (깊이 1이라 피처마다 계단 함수의 합)
-  각 피처 항에서 학습 구간 평일 평균을 빼 기준을 평소 평일로 옮긴 뒤, 모델마다 '확률 − 기준 확률'을 로짓 기여 비율대로 나누고
+  각 피처 항에서 비교 대상 날들의 평균을 빼 기준을 옮긴 뒤, 모델마다 '확률 − 기준 확률'을 로짓 기여 비율대로 나누고
   (비율 = 두 로짓 사이 시그모이드 평균 기울기라 항상 유한), 세 모델 ÷ 3을 같은 묶음끼리 더함. 기여 > 0 = 위험을 높임(up).
 문장: reason_drop과 같은 방식 (묶음 |기여| ≥ MIN_P, 최대 3줄, 값과 방향이 어긋나면 그 틀은 건너뜀). 휴무일은 고정 한 줄.
 실행: python -m smp_forecast_app.src.reason_surge 2026-01-01 2026-10-18  → 근거 줄 수만 출력 (시험용, 파일은 reason_web이 만듦)
@@ -62,17 +64,23 @@ def _logit_terms(models, x: pd.DataFrame, feats: list[str]) -> dict:
     return out
 
 
-def contributions(d: pd.DataFrame, dates, models) -> pd.DataFrame:
+def foil_rows(d: pd.DataFrame, ref: str) -> pd.DataFrame:
+    """비교 대상: usual = 학습 구간 평일(평소 평일), risky = 학습 구간 급등 평일."""
+    lab = d[d["y"].notna() & d["date_s"].between(T2.DEV_FROM, T2.DEV_TO) & (d["is_off"] == 0)]
+    return (lab if ref == "usual" else lab[lab["y"] == 1]).reset_index(drop=True)
+
+
+def contributions(d: pd.DataFrame, dates, models, ref: str = "usual") -> pd.DataFrame:
     feats = list(T2.FEATS)
     x = d.set_index("date").reindex(pd.to_datetime(list(dates))).reset_index().rename(columns={"index": "date"})
-    lab = d[d["y"].notna() & d["date_s"].between(T2.DEV_FROM, T2.DEV_TO) & (d["is_off"] == 0)].reset_index(drop=True)
+    lab = foil_rows(d, ref)
     p = T2.predict(models, x)
     tx, tb = _logit_terms(models, x, feats), _logit_terms(models, lab, feats)
     total = pd.DataFrame(0.0, index=x.index, columns=feats)
     base_p = 0.0
     for m in T2.KEYS:
         const, terms = tx[m]
-        mu = tb[m][1].mean()                               # 평소 평일의 피처 항 평균 → 기준으로 옮김
+        mu = tb[m][1].mean()                               # 비교 대상 날들의 피처 항 평균 → 기준으로 옮김
         L0, phi = const + mu.sum(), terms - mu
         L = L0 + phi.sum(axis=1)
         assert np.allclose(_sig(L), p[m]), f"{m} 로짓 분해가 모델 확률과 다름"
@@ -82,7 +90,7 @@ def contributions(d: pd.DataFrame, dates, models) -> pd.DataFrame:
         total += phi.mul(slope, axis=0) / 3
         base_p += p0 / 3
     r = pd.DataFrame({"date": x["date"].dt.strftime("%Y-%m-%d"), "score": FA.combine(p, x, V3.CFG).values,
-                      "avg": p["avg"].values, "base": base_p, "is_off": x["is_off"].values})
+                      "avg": p["avg"].values, "base": base_p, "is_off": x["is_off"].values, "ref": ref})
     for g, fs in GROUPS.items():
         r[f"g:{g}"] = total[fs].sum(axis=1).values
     for f in feats:
@@ -92,8 +100,9 @@ def contributions(d: pd.DataFrame, dates, models) -> pd.DataFrame:
     return r
 
 
-def _texts(f: str, up: bool, x: pd.Series, med: pd.Series):
-    """피처 하나 → (문장, 값이 방향과 맞는지). up = 급등 위험을 높이는 쪽."""
+def _texts(f: str, up: bool, x: pd.Series, med: pd.Series, usual: pd.Series):
+    """피처 하나 → (문장, 값이 방향과 맞는지). up = 급등 위험을 높이는 쪽.
+    med = 비교 대상 중앙값(방향 확인용), usual = 평소 평일 중앙값('낮다'고 말해도 되는지)."""
     hi = lambda c: x[c] > med[c]
     ref = x["ref_max"]
     if f in ("prev_max", "prev_max_rel", "prev_max_vs_q90", "prev_excess", "prev_mean_rel"):
@@ -138,7 +147,7 @@ def _texts(f: str, up: bool, x: pd.Series, med: pd.Series):
                 else f"마지막 급등이 {n:.0f}일 전으로 오래됐습니다"), (n <= 30) if up else (n > 90)
     if f == "kpx_peak":
         return (f"내일 최대 전력수요가 {x[f]:.0f}GW로 높게 전망됩니다 (주간 전망)" if up
-                else f"내일 최대 전력수요가 {x[f]:.0f}GW로 낮게 전망됩니다 (주간 전망)"), hi(f) == up
+                else f"내일 최대 전력수요가 {x[f]:.0f}GW로 {'낮게' if x[f] < usual[f] else '급등했던 날들보다 낮게'} 전망됩니다 (주간 전망)"), hi(f) == up
     if f in ("prev_dem_max", "prev_dem_rel28", "same_type_dem_rel28", "dem_trend7"):
         pct = (x["prev_dem_rel28"] - 1) * 100
         return (f"오늘 최대 전력수요가 최근 4주 평균보다 {abs(pct):.0f}% {'많' if up else '적'}습니다"), \
@@ -165,22 +174,23 @@ def _texts(f: str, up: bool, x: pd.Series, med: pd.Series):
     return "", False
 
 
-def reasons(r: pd.Series, x: pd.Series, med: pd.Series, grade: str) -> list[dict]:
+def reasons(r: pd.Series, x: pd.Series, med: pd.Series, grade: str, usual: pd.Series) -> list[dict]:
+    """판정과 같은 방향의 근거만 (주의·경보 = up, 없음 = down) — 결과와 어긋나는 줄을 보이지 않음."""
     if r["is_off"]:
         return [{"t": OFFDAY_TEXT, "dir": "down", "group": "달력", "feature": "is_off", "p": np.nan}]
+    want_up = grade in ("주의", "경보")
     items = []
     for g, fs in GROUPS.items():
         c = r[f"g:{g}"]
-        if abs(c) < MIN_P:
+        if abs(c) < MIN_P or (c > 0) != want_up:
             continue
         up = c > 0
         for f in sorted(fs, key=lambda f: -(r[f"f:{f}"] * (1 if up else -1))):
-            t, ok = _texts(f, up, x, med)
+            t, ok = _texts(f, up, x, med, usual)
             if t and ok:
                 items.append({"t": t, "dir": "up" if up else "down", "group": g, "feature": f, "p": round(float(c), 3)})
                 break
-    first = "up" if grade in ("주의", "경보") else "down"
-    items.sort(key=lambda d: (d["dir"] != first, -abs(d["p"])))
+    items.sort(key=lambda d: -abs(d["p"]))
     return items[:3]
 
 
@@ -194,17 +204,23 @@ def explain(dates, d: pd.DataFrame | None = None):
         rows = d.set_index("date").reindex(pd.to_datetime(list(dates)))
         if rows[["prev_max", "wx_tmean"]].isna().any().any():          # ops_surge.predict와 같은 확인 (빈칸이면 점수가 운영과 달라짐)
             raise ValueError("대상일 입력 없음 — 판단일 SMP 실적 또는 Open-Meteo(collect_extra openmeteo) 확인")
-        cb = contributions(d, dates, models)
-        lab = d[d["y"].notna() & d["date_s"].between(T2.DEV_FROM, T2.DEV_TO) & (d["is_off"] == 0)]
-        med = lab[T2.FEATS].median()
+        cb = contributions(d, dates, models, "usual")
+        cb["grade"] = V3.grade(cb["score"].values, ch["문턱"])
+        low = cb.loc[(cb["grade"] == "없음") & (cb["is_off"] == 0), "date"]
+        if len(low):                                       # '없음' 평일은 급등했던 평일과 비교해 다시 계산
+            cr = contributions(d, pd.to_datetime(low), models, "risky").set_index("date")
+            cb = cb.set_index("date")
+            cb.loc[cr.index, cr.columns] = cr
+            cb = cb.reset_index()
+        med = {ref: foil_rows(d, ref)[T2.FEATS].median() for ref in ("usual", "risky")}
     finally:
         FA.configure({})
     xs = d.set_index("date_s")
     rows = []
     for _, r in cb.iterrows():
-        grade = str(V3.grade(np.array([r["score"]]), ch["문턱"])[0])
-        its = reasons(r, xs.loc[r["date"]], med, grade)
-        base = {"date": r["date"], "score": round(r["score"], 4), "base": round(r["base"], 4), "grade": grade}
+        grade = r["grade"]
+        its = reasons(r, xs.loc[r["date"]], med[r["ref"]], grade, med["usual"])
+        base = {"date": r["date"], "score": round(r["score"], 4), "base": round(r["base"], 4), "grade": grade, "ref": r["ref"]}
         if not its:
             rows.append({**base, "rank": 0, "t": "", "dir": "", "group": "", "feature": "", "p": np.nan})
         for i, it in enumerate(its, 1):

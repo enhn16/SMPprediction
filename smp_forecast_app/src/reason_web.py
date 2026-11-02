@@ -3,6 +3,7 @@
 출력 (smp_forecast_app/outputs/tables)
   R5_why_육지.json      {"meta": {...}, "drop": {대상일: [{t, dir}]}, "surge": {대상일: [{t, dir}]}}
                         dir = up(위험을 높임) / down(낮춤) / none(확실한 근거 없음 — 한 줄 고정 문장)
+                        판정과 같은 방향만: 주의·경보 = up(평소 날과 비교), 없음 = down(위험했던 날과 비교)
   R5_reason_육지.csv    계산용 긴 표: base_date, date, kind, grade, score, rank, t, dir, group, feature, contrib, unit
 대상 기간: 급락 2025-01-01 ~ 내일 (대상일 전년도 말까지 학습 = predict_team과 같음),
           급등 2026-01-01 ~ 내일 (저장된 2023~2025 모델만 있어 2025는 학습 구간 안 → 내지 않음).
@@ -23,7 +24,9 @@ REGION = "육지"
 WHY_JSON = OUT_TAB / f"R5_why_{REGION}.json"
 LONG_CSV = OUT_TAB / f"R5_reason_{REGION}.csv"
 START = {"drop": "2025-01-01", "surge": "2026-01-01"}
-NONE_TEXT = {"drop": "평소와 다른 급락 위험 신호가 없습니다", "surge": "평소와 다른 급등 위험 신호가 없습니다"}
+# 판정 방향의 근거가 문턱을 못 넘은 날 (2026: 급락 1일·급등 2일) — 판정과 어긋나지 않는 고정 문장
+NONE_TEXT = {True: "작은 {name} 위험 신호 여러 개가 겹쳐 {grade} 기준을 넘었습니다",
+             False: "{name} 위험 신호가 일부 있지만 주의 기준에는 못 미쳤습니다"}
 COLS = ["base_date", "date", "kind", "grade", "score", "rank", "t", "dir", "group", "feature", "contrib", "unit"]
 
 
@@ -32,7 +35,9 @@ def _long(kind: str, rs: pd.DataFrame) -> pd.DataFrame:
     r["kind"], r["unit"] = kind, "원 (예상 한낮 최저 변화)" if kind == "drop" else "점수 (세 확률 평균 변화)"
     r["base_date"] = (pd.to_datetime(r["date"]) - pd.Timedelta(days=1)).dt.strftime("%Y-%m-%d")
     none = r["rank"] == 0
-    r.loc[none, "t"], r.loc[none, "dir"] = NONE_TEXT[kind], "none"
+    name = "급락" if kind == "drop" else "급등"
+    r.loc[none, "t"] = [NONE_TEXT[g in ("주의", "경보")].format(name=name, grade=g) for g in r.loc[none, "grade"]]
+    r.loc[none, "dir"] = "none"
     return r[COLS]
 
 
@@ -48,7 +53,9 @@ def build(dates: dict) -> pd.DataFrame:
 
 def to_json(long: pd.DataFrame) -> dict:
     out = {"meta": {"made": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"), "region": REGION,
-                    "기준": {"drop": "평소 날 (학습 구간 평균)", "surge": "평소 평일 (학습 구간 평일 평균, 휴일은 모델이 0점)"},
+                    "비교 대상": {"주의·경보": "평소 날 (급등은 평소 평일) → 위험을 높인 근거만",
+                              "없음": "위험했던 날 (급락: 한낮 최저가 주의 문턱 이하였던 날, 급등: 급등일) → 위험을 낮춘 근거만",
+                              "급등 휴일": "모델이 0점 → 고정 한 줄"},
                     "표시 문턱": {"drop": f"묶음 기여 {RD.MIN_WON:g}원 이상", "surge": f"묶음 기여 {RS.MIN_P:g} 이상"},
                     "dir": "up = 위험을 높임(▲), down = 낮춤(▼), none = 확실한 근거 없음(표시 없이 문장만)"}}
     for kind, g in long.sort_values(["date", "rank"]).groupby("kind"):
