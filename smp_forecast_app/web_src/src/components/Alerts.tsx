@@ -4,11 +4,6 @@ import { LV } from '../theme'
 
 type Lv = 'low' | 'warn' | 'strong' | 'na'
 const NAME: Record<Lv, string> = { low: '낮음', warn: '주의', strong: '경보', na: '준비 중' }
-// 과제3 근거 문장이 붙기 전까지 자리 확인용 임시 문장 (모든 예측에 근거 3줄이 붙을 예정)
-const SAMPLE: Record<'drop' | 'surge', Why> = {
-  drop: [{ t: '내일은 평일이라 전력 수요가 높은 편입니다', dir: 'down' }, { t: '오후 하늘이 흐릴 것으로 예보돼 태양광 발전이 적습니다', dir: 'down' }, { t: '최근 7일 한낮 최저 가격이 90원대로 높았습니다', dir: 'down' }],
-  surge: [{ t: '어제 저녁 가격이 최근 28일 수준보다 높았습니다', dir: 'up' }, { t: '기온이 낮아 난방 수요가 늘 수 있습니다', dir: 'up' }, { t: '주간 최대부하 전망은 평소 수준입니다', dir: 'down' }],
-}
 const pc = (v: number) => `${Math.round(v * 100)}%`
 
 /** 등급 막대: 확률 그대로의 비율(0~100%), 등급 경계에 % 표시 */
@@ -32,7 +27,6 @@ function Meter({ lv, p, warn, strong }: { lv: Lv; p: number; warn: number; stron
 
 function Card({ kind, lv, prob, date, sub, why, note, warn, strong }: { kind: 'drop' | 'surge'; lv: Lv; prob?: number | null; date: string; sub: string; why?: Why; note?: string; warn: number; strong: number }) {
   const c = lv === 'na' ? null : LV[lv]
-  const reasons = why ?? SAMPLE[kind]
   return (
     <section className="card px-5 py-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
@@ -45,15 +39,17 @@ function Card({ kind, lv, prob, date, sub, why, note, warn, strong }: { kind: 'd
         {lv === 'na' && <span className="text-[13px] text-sub">{note}</span>}
       </div>
       {lv !== 'na' && prob != null && <Meter lv={lv} p={prob} warn={warn} strong={strong} />}
-      {lv !== 'na' && (
+      {/* 근거: 모델이 점수에 쓴 이유 중 확실한 것만 1~3줄. 근거가 없으면 회색 문장 한 줄, 자료가 없으면(제주 등) 표시 안 함 */}
+      {lv !== 'na' && why && why.length > 0 && (
         <ul className="mt-2 space-y-1">
-          {reasons.slice(0, 3).map((r) => (
+          {why.slice(0, 3).map((r) => r.dir === 'none' ? (
+            <li key={r.t} className="text-[13px] leading-5 text-mute">{r.t}</li>
+          ) : (
             <li key={r.t} className="flex gap-2 text-[13px] leading-5 text-ink">
               <span className="mt-[1px] shrink-0 text-[10px]" style={{ color: r.dir === 'up' ? LV.strong.text : LV.low.text }}>{r.dir === 'up' ? '▲' : '▼'}</span>
               {r.t}
             </li>
           ))}
-          {!why && <li className="text-[11px] text-mute">(예시 문장)</li>}
         </ul>
       )}
     </section>

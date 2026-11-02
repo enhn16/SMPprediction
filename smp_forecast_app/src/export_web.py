@@ -230,6 +230,7 @@ def main():
     dayinfo = {d.strftime("%Y-%m-%d"): {"dt": r.day_type, "off": bool(r.is_offday)} for d, r in cal.iterrows()}
     land = region_payload("육지", dayinfo)
     land["surge"] = surge_payload()   # 급등 경보는 육지만 (제주 모델 없음)
+    land["why"] = {k: v for k, v in _json("R5_why_육지.json").items() if k != "meta"}   # 경보 근거 문장 (R5, docs/REASON.md)
 
     perf = {
         "week": {"models": _table("WZ1_models.csv"),

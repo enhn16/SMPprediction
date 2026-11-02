@@ -18,12 +18,12 @@ export type RegionData = {
   dropMeta: DropMeta
 }
 /** 예측 근거 (과제3): 위험을 높이는 쪽 up / 낮추는 쪽 down, 쉬운 문장 */
-export type Why = { t: string; dir: 'up' | 'down' }[]
+export type Why = { t: string; dir: 'up' | 'down' | 'none' }[] // none = 확실한 근거 없음 (화살표 없이 회색 문장)
 export type SurgeLevel = { n: number; k: number; rate: number | null; perMonth: number; lift: number | null }
 export type SurgeData = { past: Record<string, { grade: string; prob: number | null }>; meta: { base: number | null; days: number; warnP: number; strongP: number; warn: SurgeLevel; strong: SurgeLevel }; model: string }
 export type SmpData = RegionData & {
   surge?: SurgeData | null // 육지만
-  why?: { drop?: Record<string, Why>; surge?: Record<string, Why> } // 과제3 근거 (대상일별, 아직 없음)
+  why?: { drop?: Record<string, Why>; surge?: Record<string, Why> } // 경보 근거 문장 (대상일별, 육지만)
   generated: string
   lastRun: string | null
   hasJeju?: boolean

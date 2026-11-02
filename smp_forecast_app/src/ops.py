@@ -266,6 +266,12 @@ def surges(bases, run_at):
         _append("surge_log.csv", r[["run_at", "base_date", "date", "grade", "prob", "score"]], ["date"])
 
 
+def reasons(bases, run_at):
+    """경보 근거 문장 (R5 과제3, 2026-11-02): 급락·급등 예측 뒤 판단일마다 다음 날 하루분을 계산해 R5_why_육지.json에 바꿔 끼움 (하루 약 40초)."""
+    for b in bases:
+        run(["smp_forecast_app.src.reason_web", "--ops", b.strftime("%Y-%m-%d")])
+
+
 # ---------------------------------------------------------------- 제주 (제주 채팅이 만든 jz_ops 호출, 육지 산출 뒤)
 def collect_jeju(today):
     run(["common.collect.kpx_jeju_sukub", (today - pd.Timedelta(days=3)).strftime("%Y%m%d")])   # 5분 실적: 판단일 14:25까지 필요
@@ -370,7 +376,7 @@ def daily():
         log("새 기준일 없음 (이미 산출됨)")
     else:
         log(f"기준일 {bases[0].date()} ~ {bases[-1].date()} ({len(bases)}일) 산출" + (" — 지연 산출 포함" if len(bases) > 1 else ""))
-        for name, fn in (("일주일", weekly), ("한 달", monthly), ("급락 경고", drops), ("급등 경보", surges)):
+        for name, fn in (("일주일", weekly), ("한 달", monthly), ("급락 경고", drops), ("급등 경보", surges), ("경보 근거", reasons)):
             try:
                 fn(bases, run_at)
                 log(f"{name} 완료")
