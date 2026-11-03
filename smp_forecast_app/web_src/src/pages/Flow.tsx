@@ -46,7 +46,7 @@ export function Flow() {
 
 function DropFlow({ dates }: { dates: string[] }) {
   const hasMin = REGION === '육지' // 제주 급락 모델은 분류(KNN)라 예상 한낮 최저가 없음
-  const WARN = D.dropMeta.lines?.['주의'] ?? 89.8, STRONG = D.dropMeta.lines?.['경보'] ?? 66.7 // 육지 예상 한낮 최저 문턱 (drop_choice_육지.json)
+  const WARN = D.dropMeta.lines?.['주의'] ?? 83.3, STRONG = D.dropMeta.lines?.['경보'] ?? 62.7 // 육지 예상 한낮 최저 문턱 (drop_choice_육지.json)
   const rows = dates.map((d) => {
     const on = dropTarget(d)   // 육지 = 모든 날, 제주 = 전체 날 모델 전까지 휴일·주말만
     const dr = on ? D.past.drop[d] : undefined, y = D.past.dailyActual[d]?.midmin ?? null

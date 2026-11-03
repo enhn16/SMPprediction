@@ -155,7 +155,7 @@ export default function App() {
           {st.r === 'docs' && <Docs page={st.doc} onPage={(p) => go('docs', p)} />}
           {st.r === 'help' && <Help go={go} />}
           <footer className="mt-12 text-[12px] text-mute">
-            출처: 전력거래소·기상청·한국천문연구원·EPSIS 공공데이터
+            출처: 전력거래소·EPSIS·기상청·한국천문연구원·한국가스공사 공공데이터, Open-Meteo
           </footer>
         </div>
       </main>
