@@ -8,3 +8,6 @@ read/
 catboost_info/
 .tmp_*
 .claude/settings.local.json
+
+# 팀원 원본 코드·자료 (참고용, 현업 데이터 포함 — 저장소에 올리지 않음)
+reference/
