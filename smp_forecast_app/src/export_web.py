@@ -263,9 +263,10 @@ def main():
             "surgeFeatures": len(_json_at(SURGE_T / "surge_choice_육지_15h.json").get("피처", [])),
             "dropZoo": json.loads(pd.read_csv(t1 / "17_zoo_cv2025_육지.csv").drop(columns=["초"], errors="ignore").head(15)
                                   .round(4).to_json(orient="records", force_ascii=False))}
-    # 팀 비교표 (team_scorecard.py: 2026-01-01 ~ 10-18, 급락 = 모든 날 공식 + 휴일·주말 참고) — 계통별로 나눠 참고 문서 개요에
-    tp, td, ti = _table("T1_team_price.csv"), _table("T2_team_drop.csv"), _json("T_team.json")
-    team = lambda reg: {"price": [r for r in tp if r["계통"] == reg], "drop": [r for r in td if r["계통"] == reg], "info": ti}
+    # 최종 모델 성적표 (team_scorecard.py: 2026-01-01 ~ 10-18, 범위는 보정 전) — 계통별로 나눠 참고 문서 개요에
+    tp, td, ts, ti = _table("T1_team_price.csv"), _table("T2_team_drop.csv"), _table("T3_team_surge.csv"), _json("T_team.json")
+    team = lambda reg: {"price": [r for r in tp if r["계통"] == reg], "drop": [r for r in td if r["계통"] == reg],
+                        "surge": [r for r in ts if r["계통"] == reg], "info": ti}
     docs["team"] = team("육지")
     try:
         jeju = region_payload("제주", dayinfo)
