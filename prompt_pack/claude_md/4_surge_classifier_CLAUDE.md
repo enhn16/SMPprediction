@@ -38,5 +38,12 @@ surge_classifier/
 ```
 - 정제 데이터는 `../data/processed/surge_classifier/`에 저장.
 - **데이터는 팀 목록 13종만** (루트 CLAUDE.md, 내일 하루전 수요예측은 피처로 쓰지 않음). 과제1 피처 테이블은 목록 밖 자료(단기예보 격자·ASOS)가 섞여 있어 쓰지 않고, `src/features.py`가 12종으로 새로 만든다.
-- 실행 순서 (루트에서): `python -m surge_classifier.src.label_days` → `.features` → `.compare` → `.models` (2026 채점 포함, 다시 돌려도 같은 결과) → `.ops_surge` (운영 함수 검증)
-- 결과 형식은 ROLES.md 4.1 (`kind=surge`): `outputs/tables/surge_육지_15h.csv`, `surge_choice_육지_15h.json`, `surge_score_육지_15h.csv`, 운영 함수 `predict(bases)` (15시 하나). 21h 파일은 이전 기록.
+- 실행 순서 (루트에서): `python -m surge_classifier.src.label_days` → `.features` → `.extra_features` → `.collect_extra openmeteo` → `.team_model2`(팀원 재현) → `.team_model2_fa`(헛경보 후보, 검증) → **`.team_model3`(v3 산출물)** → **`.ops_surge`(운영 함수 검증)**
+- 결과 형식은 ROLES.md 4.1 (`kind=surge`, 15시 하나): `outputs/tables/surge_육지_15h.csv`, `surge_choice_육지_15h.json`, `surge_score_육지_15h.csv`, 운영 함수 `src/ops_surge.predict(bases)`. 예전 지수식·21시 결과는 `*_v1_index`·`*_v1`(`models.py`·`ops_surge_v1.py`).
+
+## 5. 지금 모델 (2026-10-28)
+
+- **v3 = 운영 모델** (`src/team_model3.py`): v2 + 평일×오후 흐림·평일×한낮 JMA 운량·주간전망 최대부하 입력(부호 +) + 휴무일 제외. 주의 0.43 · 경보 0.76. 2026 공식: 주의 5/7(헛경보 101), 경보 2/7(헛경보 1). PLAN.md ④-6·④-7.
+- v2 = 팀 합의 급등 모델 원형: 팀원 `spike_simple3.py`(reference/급등_코드) 재구현, 입력만 팀 13종 → `src/team_model2.py`. 부호 고정 점수(19개, 난방도·냉방도 +) + 스플라인 로지스틱(37개, C=0.05) + LightGBM 그루터기(200그루, balanced) 확률 평균, 2024~2025 매달 앞으로만 검증, 주의 0.37 · 경보 0.70(규칙 계산).
+- 2026 공식(~10-18): 주의 5/7(헛경보 151), 경보 2/7(헛경보 5), PR-AUC 0.220. 우선순위 = 1순위 급등일 잡기, 2순위 헛경보 줄이기 (사용자 결정).
+- 이전: 지수식(`models.py`, 산출물은 *_v1_index로 보관 예정), 우리 구현 v1(`team_model.py`, 재현 실패 기록용). 비교는 `compare_versions.py`, 상세는 PLAN.md ④절.
