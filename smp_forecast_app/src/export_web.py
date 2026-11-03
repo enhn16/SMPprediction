@@ -73,8 +73,8 @@ def _json(name):
 
 # 계통별 입력 (제주는 제주 채팅 결과 파일 + 제주 운영 기록, docs/JEJU.md 1절)
 SRC = {
-    "육지": {"hourly": DATA / "wz3" / "WZ3_K3_backtest_hourly.csv", "daily": DATA / "mx" / "MX_predictions_daily_v2.csv", "drop": ROOT / "drop_classifier" / "outputs" / "tables" / "drop_육지_15h.csv",   # R1 산출 (2026-10-26 교체)
-             "ops": OPS, "logs": ("hourly_log_k3.csv", "daily_log.csv", "drop_log.csv")},
+    "육지": {"hourly": DATA / "wz3" / "WZ3_K3_backtest_hourly.csv", "daily": DATA / "mm" / "MM_predictions_daily.csv", "drop": ROOT / "drop_classifier" / "outputs" / "tables" / "drop_육지_15h.csv",   # R1 산출 (2026-10-26 교체)
+             "ops": OPS, "logs": ("hourly_log_k3.csv", "mm_log.csv", "drop_log.csv")},   # 한 달 = MM (2026-11-03, R6)
     "제주": {"hourly": JDIR / "JWZ_predictions_hourly.csv", "daily": JDIR / "JMZ_predictions_daily.csv", "drop": JDIR / "drop_badge_제주.csv",
              "ops": JDIR / "ops", "logs": ("jwz_log.csv", "jdaily_log.csv", "jdrop_log.csv")},
 }
@@ -103,6 +103,8 @@ def daily_frame(region="육지"):
     om = _log(region, 1, parse_dates=["base_date", "date"])
     if len(om):
         m = pd.concat([m[~m["base_date"].isin(om["base_date"])], om])
+    if "H" not in m:   # 육지 MM: 월말 판단 → 다음 달 (H = 판단일부터 며칠 뒤)
+        m["H"] = (m["date"] - m["base_date"]).dt.days
     return m
 
 
@@ -206,21 +208,25 @@ def region_payload(region, dayinfo):
 
     # 한 달
     m = daily_frame(region)
+    mmode = region == "육지"   # 육지 = 월말 판단 → 다음 달 전체 (MM), 제주 = 매일 7~34일 뒤
+    stats = [s for s in STATS if f"pred_{s}" in m]
     fullm = m[m["pred_mean"].notna()].groupby("base_date")["H"].nunique()   # 빈 백테스트 행(피처만 있는 최신 기준일) 제외
     mbase = fullm[fullm >= 28].index.max()
     mm = m[m["base_date"] == mbase].sort_values("H")
     ds = daily_stats() if region == "육지" else jz_daily_stats(region)
     month = {"base": mbase.strftime("%Y-%m-%d"), "d": mm["date"].dt.strftime("%Y-%m-%d").tolist(),
-             "dt": [dayinfo.get(x, {}).get("dt") for x in mm["date"].dt.strftime("%Y-%m-%d")]}
-    for s in STATS:
+             "dt": [dayinfo.get(x, {}).get("dt") for x in mm["date"].dt.strftime("%Y-%m-%d")],
+             "mode": "next_month" if mmode else "rolling"}
+    for s in stats:
         for k, c in (("p", "pred"), ("lo", "lo"), ("hi", "hi")):
             month[f"{k}_{s}"] = [_n(v) for v in mm[f"{c}_{s}"]]
         month[f"y_{s}"] = [_n(ds[s].get(x)) for x in mm["date"]]
     past_d = {}
-    for H in DAILY_H:
-        g = m[(m["H"] == H) & (m["date"] >= PAST_SINCE)]
+    groups = [("m", m)] if mmode else [(H, m[m["H"] == H]) for H in DAILY_H]   # 육지: 키 'm' = 전달 말 판단
+    for H, g in groups:
+        g = g[g["date"] >= PAST_SINCE]
         past_d[H] = {r.date.strftime("%Y-%m-%d"): {s: [_n(getattr(r, f"pred_{s}")), _n(getattr(r, f"lo_{s}")), _n(getattr(r, f"hi_{s}"))]
-                                                   for s in STATS} for r in g.itertuples()}
+                                                   for s in stats} for r in g.itertuples()}
     daily_act = {d.strftime("%Y-%m-%d"): {s: _n(r[s]) for s in STATS} for d, r in ds[ds.index >= PAST_SINCE].iterrows()}
     return {"lastPublished": act["date"].max().strftime("%Y-%m-%d"), "week": week, "month": month, "dropMeta": drop_meta(region, drop),
             "past": {"hourly": past_h, "actual": actual, "daily": past_d, "dailyActual": daily_act, "drop": drops}}
@@ -242,7 +248,8 @@ def main():
                  # 일주일 K3 (2026-11-03, R3 WEEK_K3_HANDOFF.md): 설정 + 지금 모델과 나란히 본 성적 (2025 하반기 검증 · 2026 시험)
                  "k3": _json("WZ3_K3_choice.json"), "k3Score": _table("WZ3_K3_score.csv")},
         # 한 달 = R3 mx v2 (2026-10-27 교체, docs/MONTH.md)
-        "month": {"models": _table("MX1_models_v2.csv"), "ens": _table("MX2_ensembles_2025_v2.csv"), "test": _table("MX4_test2026_v2.csv"),
+        "month": {"mm": _json("MM_choice.json"), "mmScore": _table("MM_score.csv"),   # 한 달 MM (2026-11-03, R6)
+                  "models": _table("MX1_models_v2.csv"), "ens": _table("MX2_ensembles_2025_v2.csv"), "test": _table("MX4_test2026_v2.csv"),
                   "choice": _json("MX_choice_v2.json")},
         "dropCal": drop_cal("육지"), "dropChoice": _json_at(LAND_DROP_CHOICE),
         "rangeAdj": {"choice": _json("RA_choice.json"), "test": _table("RA2_test2026.csv")},

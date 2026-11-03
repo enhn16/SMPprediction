@@ -141,7 +141,7 @@ function Overview() {
   const final = [
     { a: '내일 급락 경보', m: `LSTM + LightGBM(확장 변수) 평균(2023~2025 학습) → 내일 한낮 최저 SMP → 주의(≤${D.dropMeta.lines?.['주의'] ?? '-'}원)·경보(≤${D.dropMeta.lines?.['경보'] ?? '-'}원), 급락 확률`, s: '' },
     { a: '일주일 예측 (D+1~D+7, 시간별)', m: 'K3: 평일 Chronos-2(우리 자료로 연 1회 추가 학습) · 휴무일 Chronos-2(미래 정보 포함) + 0.5 × 오차 보정 (LightGBM)', s: `MAE ${n2(w.MAE)}원 · 포함률 ${pct(w['포함률'])} · 폭 ${fmt(w['평균 폭'])}원 (내일 시간별 MAE ${n2(w1.MAE)}원)` },
-    { a: '한 달 예측 (7~34일 뒤, 일별)', m: 'Chronos 3종 × 0.75 + LSTM·GRU × 0.25 (저녁은 9개 모델 지평별 가중), 2023~ 학습', s: `일평균 MAE ${n2(m.MAE)}원 · 포함률 ${pct(m['포함률'])} (참고 전망)` },
+    { a: '한 달 예측 (월말 → 다음 달, 일별)', m: 'LightGBM + 가스공사 발전용 요금, 월말 판단마다 재학습 (2023~)', s: `일평균 MAE ${n2(m.MAE)}원 · 포함률 ${pct(m['포함률'])} (참고 전망)` },
   ]
   return (
     <>
@@ -343,7 +343,7 @@ function WeekDoc() {
 }
 
 /** 한 달 핵심 지표 (육지·제주 공용, 팀 성능 표의 한 달 행): 일주일 지표와 같은 꼴 */
-function MonthKpis({ rows }: { rows: Row[] }) {
+function MonthKpis({ rows, w1name = '1주차 (7~13일 뒤)' }: { rows: Row[]; w1name?: string }) {
   const g = (k: string): Row => rows.find((r) => r['구분'] === k) ?? {}
   const m = g('일평균'), w1 = g('일평균 · 1주차'), w4 = g('일평균 · 4주차')
   return (
@@ -352,60 +352,52 @@ function MonthKpis({ rows }: { rows: Row[] }) {
       { k: 'rMAE', v: n3(m.rMAE), s: `같은 유형일 평균 ${n2(m['단순 기준 MAE'])}원 대비` },
       { k: '80% 범위 포함률', v: pct(m['포함률']), s: '목표 75~85%', tone: tone(m['포함률']) },
       { k: '평균 폭', v: fmt(m['평균 폭']) + '원', s: `1주차 ${fmt(w1['평균 폭'])} → 4주차 ${fmt(w4['평균 폭'])}` },
-      { k: '1주차 (7~13일 뒤)', v: n2(w1.MAE) + '원', s: `포함률 ${pct(w1['포함률'])} · rMAE ${n3(w1.rMAE)}` },
+      { k: w1name, v: n2(w1.MAE) + '원', s: `포함률 ${pct(w1['포함률'])} · rMAE ${n3(w1.rMAE)}` },
     ]} />
   )
 }
 
 function MonthDoc() {
-  // R3 mx v2 (2026-10-27 교체): MX1_models_v2·MX2_ensembles_2025_v2·MX4_test2026_v2·MX_choice_v2, 성적은 팀 비교표(T1)
-  const M = D.perf.month ?? ({} as any)
-  const ch = MZC['지표별'] ?? {}
-  const keys = Object.keys(STAT_NAME) as Stat[]
-  const SNK = Object.fromEntries(keys.map((k) => [STAT_NAME[k], k])) as Record<string, Stat>   // 표의 지표 이름 → 키
+  // 한 달 MM (2026-11-03, R6): 팀원 최종 코드의 LightGBM 단독 + 가스공사 발전용 요금. 성적은 팀 비교표(T1), 변동비판 비교는 MM_score
+  const ch: Row = D.perf.month?.mm ?? {}
+  const sc: Row[] = D.perf.month?.mmScore ?? []
   const tp: Row[] = (D.docs?.team?.price ?? []).filter((r: Row) => r['예측'] === '한 달')
-  const tm = (s: Stat): Row => tp.find((r) => r['구분'] === STAT_NAME[s]) ?? {}
-  const piv: Record<string, Row> = {}
-  ;(M.models ?? []).forEach((r: Row) => { (piv[r['모델']] ||= { 모델: r['모델'] })[SNK[r['지표']] ?? r['지표']] = r['2025'] })
-  const prow = Object.values(piv).sort((a, b) => (a.mean ?? 99) - (b.mean ?? 99))
-  const ens = keys.flatMap((s) => (M.ens ?? []).filter((r: Row) => (SNK[r['지표']] ?? r['지표']) === s)
-    .sort((a: Row, b: Row) => a['2025(선택)'] - b['2025(선택)']).slice(0, 4).map((r: Row) => ({ ...r, 지표: STAT_NAME[s] })))
-  const test: Row[] = (M.test ?? []).filter((r: Row) => r['주차'] === '전체').map((r: Row) => ({ ...r, 지표: STAT_NAME[SNK[r['지표']] ?? r['지표'] as Stat] ?? r['지표'] }))
+  const op = (fuel: string, per: string): Row => sc.find((r) => r['연료'] === fuel && String(r['학습 방식']).includes('운영') && String(r['기간']).startsWith(per)) ?? {}
+  const cmp = ['2025', '2026'].map((per) => ({ 기간: per === '2025' ? '2025 (검증)' : '2026 ~10/18 (참고)', g: op('가스요금', per), v: op('변동비', per) }))
+    .map((r) => ({ 기간: r.기간, gm: r.g.MAE, vm: r.v.MAE, gc: r.g['포함률'], vc: r.v['포함률'], gs: r.g['구간점수'], vs: r.v['구간점수'] }))
   return (
     <>
-      <MonthKpis rows={tp} />
-      <Sec title="최종 모델: Chronos 3종 + LSTM·GRU 조합" sub="2026-10-27 교체 · 참고 전망">
+      <MonthKpis rows={tp} w1name="1주차 (대상 달 1~7일)" />
+      <Sec title="최종 모델: LightGBM + 가스공사 발전용 요금" sub="2026-11-03 확정 · 참고 전망">
         <ul>
-          <li><b>재료</b>: Chronos-2 시간별(small·기본)·Chronos-2 일별 다변량(3종), 지금 구조의 LSTM·GRU, 표 모델(LightGBM·엑스트라트리)과 Chronos 잔차 보정.</li>
-          {keys.map((s) => <li key={s}><b>{STAT_NAME[s]}</b>: {ch[s]?.['점예측(2025 선택)'] ?? '-'} · 범위 {ch[s]?.['범위'] ?? '-'}</li>)}
-          <li><b>학습</b>: 대상일 2023~ (2023 연료비·중기·단기예보·주간전망 보강분 포함). 표 모델 매월, LSTM·GRU 분기 재학습. 운영은 매주 일요일 재학습(약 5분).</li>
+          <li><b>판단</b>: 매월 마지막 날 15시에 <b>다음 달 1일 ~ 말일의 일평균 SMP</b>를 한 번 예측합니다. 그달 내내 같은 예측을 보여 주고, 지난 날은 공표값과 비교합니다.</li>
+          <li><b>모델</b>: LightGBM 하나. 목표는 '대상일 일평균 ÷ 판단일 최근 28일 평균'(수준 대비 비율)이라, 최근 가격 수준에 비율을 곱해 예측합니다.</li>
+          <li><b>입력</b>: {(ch['피처'] ?? []).join(', ')}.</li>
+          <li><b>연료</b>: 가스공사 일반발전 요금(원/GJ × 7.2 ÷ 1000 = 원/kWh). 다음 달 요금은 보통 전달 26~27일에 게시되며, 판단일에 이미 게시된 달만 씁니다 (없으면 전달 값).</li>
+          <li><b>80% 범위</b>: 최근 변동성과 가스요금 변화가 클수록 넓어지는 방식(B2), 주차별 과거 오차의 10·90% 분위수.</li>
+          <li><b>학습</b>: 2023-01 ~ 판단일까지 자료로 <b>월말 판단마다 다시 학습</b> (몇 초).</li>
         </ul>
       </Sec>
-      <Sec title="선택 이유" sub="2024로 가중치·λ → 2025 MAE로 선택 (0.05원 이내면 구성이 적은 쪽) → 2024~2025 재적합 → 2026 채점">
+      <Sec title="선택 이유">
         <ul>
-          <li>Chronos에 LSTM·GRU를 25% 섞으면 2025 상·하반기 모두 좋아져 일평균·한낮·한낮 최저에 채택, 저녁은 9개 모델 지평별 가중이 가장 좋았습니다.</li>
-          <li>2026 평가에서 4지표 모두 이전 모델(같은 유형일 + LSTM·GRU)보다 좋았고, 저녁(−1.22원)·한낮 최저(−1.33원)는 95% 구간상 확실합니다. 한낮 최저는 단순 기준도 확실히 이겼습니다(−3.87원).</li>
+          <li>팀원 최종 코드의 원안은 'LightGBM + Chronos 평균 + 변동비'였습니다. 같은 코드에서 모델과 연료 입력만 하나씩 바꿔 2025로 비교했고, <b>LightGBM 단독이 평균보다 나았습니다.</b></li>
+          <li>연료 입력은 회사 변동비와 가스공사 요금의 2025 성적 차이가 0.05원 안이라 팀 규칙상 같은 성능입니다. <b>가스요금은 매달 공개돼 꾸준히 모을 수 있어</b> 운영에 썼습니다.</li>
+          <li>이전 한 달 모델(Chronos 3종 + LSTM·GRU, 매일 7~34일 뒤)보다 2026 일평균 오차가 작습니다.</li>
         </ul>
       </Sec>
-      <Sec title="비교한 단일 모델" sub="2025년 MAE (원), 일평균 순">
-        <Table rows={prow} sel={(r) => r === prow[0]} cols={[{ k: '모델', t: '모델', l: true }, ...keys.map((k) => ({ k, t: STAT_NAME[k], f: n2 }))]} />
+      <Sec title="연료 입력 비교: 가스공사 요금 vs 회사 변동비" sub="같은 코드 · 월말마다 재학습 · 일평균">
+        <Table rows={cmp} csv="육지_한달_가스요금_vs_변동비" cols={[{ k: '기간', t: '기간', l: true }, { k: 'gm', t: 'MAE 가스요금', f: n2 }, { k: 'vm', t: 'MAE 변동비', f: n2 },
+          { k: 'gc', t: '포함률 가스요금', f: (v) => pct(v) }, { k: 'vc', t: '포함률 변동비', f: (v) => pct(v) }, { k: 'gs', t: '구간점수 가스요금', f: (v) => fmt(v) }, { k: 'vs', t: '구간점수 변동비', f: (v) => fmt(v) }]} />
+        <p className="!text-[12.5px] !text-mute">연료 자료(변동비·가스요금)는 2026을 본 뒤에 들어와 2026 성적은 참고입니다. 앞으로는 회사 변동비(지금처럼)나 공개 자료인 가스요금 중 골라 이어 가면 됩니다.</p>
       </Sec>
-      <Sec title="앙상블 후보 상위" sub="지표별 2025 MAE">
-        <Table rows={ens} sel={(r) => r['선택'] === '✓'} cols={[{ k: '지표', t: '지표', l: true }, { k: '후보', t: '후보', l: true, w: true }, { k: '구성 수', t: '모델 수' },
-          { k: '2024(맞춤)', t: '2024 (맞춤)', f: n3 }, { k: '2025(선택)', t: '2025 (선택)', f: n3 }]} />
-      </Sec>
-      <Sec title="2026 평가 성적표" sub="2026-01-01 ~ 10-18 · 이전 모델과 같은 날짜로 비교">
-        <Table rows={test} csv="육지_한달_v2_vs_이전" cols={[{ k: '지표', t: '지표', l: true }, { k: '새 MAE', t: '새 MAE', f: n2 }, { k: '현재 MAE', t: '이전 MAE', f: n2 },
-          { k: 'MAE 차(새−현재)', t: '차 (새−이전)', f: (v) => sgn(v, 2) }, { k: '새 단순 기준 MAE', t: '단순 기준 MAE', f: n2 }, { k: '새 rMAE', t: 'rMAE', f: n3 },
-          { k: '새 포함률', t: '새 포함률', f: (v) => pct(v) }, { k: '현재 포함률', t: '이전 포함률', f: (v) => pct(v) }, { k: '새 평균 폭', t: '새 평균 폭', f: (v) => fmt(v) }]} />
-        
-        <Table caption={<>표준 지표</>} rows={tp} csv="육지_한달_2026_표준" cols={METCOLS} />
+      <Sec title="2026 평가 성적표" sub="2026-01-01 ~ 10-18 · 팀 공식 지표 (참고)">
+        <Table rows={tp} csv="육지_한달_2026_표준" cols={METCOLS} />
       </Sec>
       <Sec title="한계">
         <ul>
-          <li><b>범위가 목표에 크게 못 미칩니다</b> (포함률 57~64%, 목표 75~85%). 2025가 평온한 해라 2025로 고른 범위가 좁게 잡혔고, 2026의 월 단위 수준 변화(1·7·8·9월)를 담지 못합니다. <b>한 달 범위는 평소 달 기준이며, 연료비·수급 변화가 있는 달은 벗어날 수 있습니다.</b></li>
-          <li>일평균은 단순 기준과 비슷하고(rMAE 1.01), 저녁은 단순 기준을 못 이깁니다(1.07).</li>
-          <li>1~4주 앞은 연료비·수급 국면이 가격을 좌우해 정확도가 낮습니다 — 참고 전망으로 보세요.</li>
+          <li>월말 판단이라 1년에 판단이 12번뿐이고, 2·3주차부터 오차가 커집니다. 참고 전망으로 보세요.</li>
+          <li>수급 국면이 급변하는 달(예: 2026-11 초)은 범위를 벗어날 수 있습니다.</li>
+          <li>일평균만 예측합니다 (한낮·저녁 시간대별은 일주일 예측을 보세요).</li>
         </ul>
       </Sec>
     </>
@@ -417,7 +409,7 @@ const PAGES: Record<DocPage, { t: string; sub: string; el: () => ReactNode }> = 
   drop: { t: '내일 급락 경보', sub: '내일 한낮 최저 SMP 30원 미만 판별', el: DropDoc },
   surge: { t: '내일 급등 경보', sub: '내일 하루 최고 SMP가 평소보다 25% 이상 뛰는 날 판별', el: SurgeDoc },
   wk: { t: '일주일 예측', sub: '기준일 15시 → 1~7일 뒤 시간별 SMP + 80% 범위', el: WeekDoc },
-  mo: { t: '한 달 예측', sub: '기준일 15시 → 7~34일 뒤 일별 4개 지표 + 80% 범위 · 참고 전망', el: MonthDoc },
+  mo: { t: '한 달 예측', sub: '매월 말 15시 → 다음 달 일평균 + 80% 범위 · 참고 전망', el: MonthDoc },
 }
 
 // 제주 참고 문서: 육지 참고 문서와 같은 꼴(핵심 지표 → 최종 모델 → 선택 이유 → 비교 후보 → 사용 데이터 → 2026 성적표 → 한계)

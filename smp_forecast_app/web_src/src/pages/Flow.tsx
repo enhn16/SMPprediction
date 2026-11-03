@@ -17,7 +17,9 @@ export function Flow() {
   const [to, setTo] = useState(MAX)
   const [kind, setKind] = useState<Kind>('wk') // 기본 = 시간별 가격 예측과 80% 범위
   const [hW, setHW] = useState('1')
-  const [hM, setHM] = useState('7')
+  const mKeys = Object.keys(D.past.daily).sort((a, b) => +a - +b)
+  const [hM, setHM] = useState(mKeys.includes('7') ? '7' : mKeys[0])   // 육지 MM은 키 'm' = 전달 말 판단 하나
+  const mStats = (Object.keys(STAT_NAME) as Stat[]).filter((k) => Object.values(D.past.daily[hM] ?? {}).some((r: any) => r?.[k]))
   const [stat, setStat] = useState<Stat>('mean')
   const dates = range(from, to)
 
@@ -32,8 +34,8 @@ export function Flow() {
         <RangePicker from={from} to={to} min={MIN} max={MAX} onChange={(a, b) => { setFrom(a); setTo(b) }} />
         <div className="flex flex-wrap items-center gap-3">
             {kind === 'wk' && <Select label="예측 시점" value={hW} onChange={setHW} options={Object.keys(D.past.hourly).sort().map((h) => ({ v: h, t: h === '1' ? '하루 전 (D+1)' : `${h}일 전 (D+${h})` }))} />}
-            {kind === 'mo' && <Select label="예측 시점" value={hM} onChange={setHM} options={Object.keys(D.past.daily).sort((a, b) => +a - +b).map((h) => ({ v: h, t: `${h}일 전 예측` }))} />}
-            {kind === 'mo' && <Select value={stat} onChange={(v) => setStat(v as Stat)} options={(Object.keys(STAT_NAME) as Stat[]).map((v) => ({ v, t: STAT_NAME[v] }))} />}
+            {kind === 'mo' && mKeys.length > 1 && <Select label="예측 시점" value={hM} onChange={setHM} options={mKeys.map((h) => ({ v: h, t: `${h}일 전 예측` }))} />}
+            {kind === 'mo' && mStats.length > 1 && <Select value={stat} onChange={(v) => setStat(v as Stat)} options={mStats.map((v) => ({ v, t: STAT_NAME[v] }))} />}
         </div>
         </div>
       </section>
@@ -185,7 +187,7 @@ function HourlyFlow({ dates, H }: { dates: string[]; H: string }) {
         </div>
       </Card>
       <CoverageTrend H={H} end={dates[dates.length - 1]} />
-      <p className="muted">{when} 예측 = 대상일보다 {H}일 앞선 기준일 15시에 일주일 모델({REGION === '제주' ? '육지 일주일 예측 + 제주 잔차 보정' : 'Chronos-2 small + 잔차 보정'})이 낸 예측과 80% 범위입니다. 한낮 최저 가격과 급락 경보은 '한낮 최저 · 급락 경보' 탭에서 봅니다.</p>
+      <p className="muted">{when} 예측 = 대상일보다 {H}일 앞선 기준일 15시에 일주일 모델({REGION === '제주' ? '육지 일주일 예측 + 제주 잔차 보정' : 'K3'})이 낸 예측과 80% 범위입니다. 한낮 최저 가격과 급락 경보은 '한낮 최저 · 급락 경보' 탭에서 봅니다.</p>
     </>
   )
 }
@@ -199,7 +201,7 @@ function DailyFlow({ dates, H, stat }: { dates: string[]; H: string; stat: Stat 
   return (
     <>
       <Summary s={s} unit="날" />
-      <Card title={`일별 · ${STAT_NAME[stat]} · ${H}일 전 예측 vs 공표`} sub="회색 = 휴무일"
+      <Card title={`일별 · ${STAT_NAME[stat]} · ${H === 'm' ? '전달 말 판단' : H + '일 전'} 예측 vs 공표`} sub="회색 = 휴무일"
         right={<Legend items={[{ t: '80% 범위', c: 'band' }, { t: '당시 예측', c: 'pred' }, { t: '공표', c: 'act' }, { t: '범위 밖', c: 'out' }]} />}>
         <EChart option={opt} height={340} />
       </Card>

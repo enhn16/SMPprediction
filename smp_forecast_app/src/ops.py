@@ -252,6 +252,19 @@ def weekly_k3(bases, run_at):
                                         "ckpt", "c", "rhat", "c2_qlo", "c2_qhi"]].round(3), ["base_date", "H", "date", "hour"])
 
 
+def monthly_mm(bases, run_at):
+    """육지 한 달 = MM (R6, 2026-11-03 확정: 팀원 LightGBM 단독 + 가스공사 요금). 월말 판단 → 다음 달 모든 날 일평균 + 80% 범위(B2).
+    월말이 아닌 날은 직전 월말 판단 결과를 돌려주므로 매일 불러도 된다 → 새 판단일일 때만 mm_log.csv에 쌓인다. 약 1~3초.
+    기존 monthly(daily_log.csv, mx v2)는 제주 한 달 입력용으로 계속 돈다 (제주 한 달 재구성 전까지)."""
+    from smp_forecast_app.src import mm_ops
+    r = mm_ops.monthly_next(max(bases).strftime("%Y-%m-%d"))
+    if len(r):
+        r = r.assign(run_at=run_at)
+        for c in ("base_date", "date"):
+            r[c] = pd.to_datetime(r[c]).dt.strftime("%Y-%m-%d")
+        _append("mm_log.csv", r[["run_at", "base_date", "date", "day_type", "offday", "pred_mean", "lo_mean", "hi_mean"]].round(3), ["base_date", "date"])
+
+
 def monthly(bases, run_at):
     """한 달 예측 = R3 mx v2 (2026-10-27 교체, docs/MONTH.md 0·4절). 지난 운영 기록(daily_log)을 범위 이력으로 넘김."""
     from smp_forecast_app.src import mx_ops
@@ -399,7 +412,7 @@ def daily():
         log("새 기준일 없음 (이미 산출됨)")
     else:
         log(f"기준일 {bases[0].date()} ~ {bases[-1].date()} ({len(bases)}일) 산출" + (" — 지연 산출 포함" if len(bases) > 1 else ""))
-        for name, fn in (("일주일 K3", weekly_k3), ("일주일(제주 입력용)", weekly), ("한 달", monthly), ("급락 경고", drops), ("급등 경보", surges), ("경보 근거", reasons)):
+        for name, fn in (("일주일 K3", weekly_k3), ("일주일(제주 입력용)", weekly), ("한 달 MM", monthly_mm), ("한 달(제주 입력용)", monthly), ("급락 경고", drops), ("급등 경보", surges), ("경보 근거", reasons)):
             try:
                 fn(bases, run_at)
                 log(f"{name} 완료")

@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { D, REGION } from '../data'
-import { avg, fmt, lab, md } from '../fmt'
+import { avg, fmt, lab, md, sgn } from '../fmt'
 import { bandOption, EChart } from '../components/Chart'
 import { Card, Legend, PageHeader, Pill } from '../components/ui'
 import { P, mix } from '../theme'
@@ -11,17 +11,21 @@ const EVE = P.orange, MID = mix(P.cyan, '#000000', 0.35)
 export function Month() {
   const M = D.month
   const n = M.d.length
+  const next = M.mode === 'next_month'   // 육지 MM: 월말 판단 → 다음 달 전체 (일평균만), 제주: 매일 7~34일 뒤 4지표
+  const tm = +M.d[0].slice(5, 7)
+  // 주차: 앞 3주는 7일씩, 4주차는 나머지 전부 (다음 달 29~31일 포함)
+  const wkIdx = (w: number) => [...Array(n).keys()].filter((j) => (w < 3 ? Math.floor(j / 7) === w : j >= 21))
   // 주인공 = 일평균(80% 범위 포함), 한낮·저녁·한낮 최저는 함께 보여 줌 (지표 탭 없음)
   const s = { p: M.p_mean, lo: M.lo_mean, hi: M.hi_mean, y: M.y_mean }
   const opt = useMemo(() => bandOption({
     x: M.d, ...s, tip: (i) => `${lab(M.d[i])} ${M.dt[i] && M.dt[i] !== '평일' ? M.dt[i] : ''} · 일평균`,
-    extra: [{ name: '저녁 18~22시', data: M.p_eve, color: EVE }, { name: '한낮 11~15시', data: M.p_mid, color: MID }],
-    xLabel: (i) => (i % 2 === 0 ? md(M.d[i]) : ''), symbols: true, daily: true,
+    extra: M.p_eve ? [{ name: '저녁 18~22시', data: M.p_eve, color: EVE }, { name: '한낮 11~15시', data: M.p_mid, color: MID }] : [],
+    xLabel: (i) => (i % (n > 28 ? 3 : 2) === 0 ? md(M.d[i]) : ''), symbols: true, daily: true,
     shade: M.d.map((_, i) => i).filter((i) => M.dt[i] && M.dt[i] !== '평일').map((i) => [i, i] as [number, number]), dividers: [7, 14, 21],
   }), [])
   // 주차 평균 (예측·하한·상한)과 범위 막대 공통 눈금
   const weeks = [0, 1, 2, 3].map((w) => {
-    const r = [...Array(7).keys()].map((j) => w * 7 + j).filter((j) => j < n)
+    const r = wkIdx(w)
     return { p: avg(r.map((j) => s.p[j])), lo: avg(r.map((j) => s.lo[j])), hi: avg(r.map((j) => s.hi[j])) }
   })
   const ext = weeks.flatMap((x) => [x.lo, x.hi]).filter((v): v is number => v != null)
@@ -32,8 +36,9 @@ export function Month() {
 
   return (
     <div className="space-y-5">
-      <PageHeader eyebrow={`예측 · ${REGION}`} title="한 달 예측" sub={<>7~34일 뒤 일별 SMP와 80% 범위 <Pill tone="gray">참고 전망</Pill></>}
-        meta={[{ k: '기준일', v: <>{M.base} 15시 판단</>, hl: true }, { k: '대상', v: <>{lab(M.d[0])} ~ {lab(M.d[n - 1])}</> }]} />
+      <PageHeader eyebrow={`예측 · ${REGION}`} title={next ? `${tm}월 한 달 예측` : '한 달 예측'}
+        sub={<>{next ? '매월 말 판단 → 다음 달 일평균 SMP와 80% 범위' : '7~34일 뒤 일별 SMP와 80% 범위'} <Pill tone="gray">참고 전망</Pill></>}
+        meta={[{ k: '기준일', v: <>{M.base} 15시 판단{next ? ' (월말)' : ''}</>, hl: true }, { k: '대상', v: <>{lab(M.d[0])} ~ {lab(M.d[n - 1])}</> }]} />
       {/* 주차 요약: 한 면에 여백으로 4칸, 범위 막대는 네 주 공통 눈금 */}
       <section className="card px-6 py-6 lg:px-7">
         <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
@@ -49,7 +54,7 @@ export function Month() {
         </div>
         <div className="mt-5 grid grid-cols-2 gap-x-10 gap-y-7 lg:grid-cols-4">
           {[0, 1, 2, 3].map((w) => {
-            const r = [...Array(7).keys()].map((j) => w * 7 + j).filter((j) => j < n)
+            const r = wkIdx(w)
             if (!r.length) return null
             const ys = r.map((j) => s.y[j]).filter((v: any) => v != null)
             const wk = weeks[w]
@@ -73,26 +78,30 @@ export function Month() {
           })}
         </div>
       </section>
-      <Card title="일별 예측" sub="회색 = 휴무일 · 세로선 = 주차 경계"
-        right={<Legend items={[{ t: '일평균 · 80% 범위', c: 'band' }, { t: '일평균 예측', c: 'pred' }, { t: '저녁 18~22시', c: EVE }, { t: '한낮 11~15시', c: MID }, { t: '공표 일평균', c: 'act' }]} />}>
+      <Card title="일별 예측" sub={next ? '회색 = 휴무일 · 세로선 = 주차 경계 · 지난 날은 공표 일평균과 비교' : '회색 = 휴무일 · 세로선 = 주차 경계'}
+        right={<Legend items={[{ t: '일평균 · 80% 범위', c: 'band' }, { t: '일평균 예측', c: 'pred' }, ...(M.p_eve ? [{ t: '저녁 18~22시', c: EVE }, { t: '한낮 11~15시', c: MID }] : []), { t: '공표 일평균', c: 'act' }]} />}>
         <EChart option={opt} height={360} />
       </Card>
-      <Card title="일별 표" sub="일평균(80% 범위) · 한낮 · 저녁 · 한낮 최저 · 공표 일평균" flush>
+      <Card title="일별 표" sub={M.p_mid ? '일평균(80% 범위) · 한낮 · 저녁 · 한낮 최저 · 공표 일평균' : '일평균(80% 범위) · 공표 일평균'} flush>
         <div className="tbl-wrap max-h-[480px]">
           <table className="tbl">
-            <thead className="sticky top-0 z-[1]"><tr><th className="l">날짜</th><th>며칠 뒤</th><th>일평균</th><th>80% 범위</th><th>한낮 11~15시</th><th>저녁 18~22시</th><th>한낮 최저</th><th>공표 일평균</th></tr></thead>
+            <thead className="sticky top-0 z-[1]"><tr><th className="l">날짜</th>{!next && <th>며칠 뒤</th>}<th>일평균</th><th>80% 범위</th>{M.p_mid && <><th>한낮 11~15시</th><th>저녁 18~22시</th><th>한낮 최저</th></>}<th>공표 일평균</th><th>오차 (공표−예측)</th></tr></thead>
             <tbody>
               {M.d.map((d: string, i: number) => (
                 <tr key={d}>
                   <td className={`l ${M.dt[i] && M.dt[i] !== '평일' ? 'text-bad' : ''}`}>{lab(d)} {M.dt[i] && M.dt[i] !== '평일' ? M.dt[i] : ''}</td>
-                  <td>{i + 7}</td><td className="font-semibold text-brand-dark">{fmt(s.p[i])}</td><td className="text-sub">{fmt(s.lo[i])} ~ {fmt(s.hi[i])}</td><td>{fmt(M.p_mid[i])}</td><td>{fmt(M.p_eve[i])}</td><td>{fmt(M.p_midmin[i])}</td><td className="font-semibold">{fmt(s.y[i])}</td>
+                  {!next && <td>{i + 7}</td>}<td className="font-semibold text-brand-dark">{fmt(s.p[i])}</td><td className="text-sub">{fmt(s.lo[i])} ~ {fmt(s.hi[i])}</td>
+                  {M.p_mid && <><td>{fmt(M.p_mid[i])}</td><td>{fmt(M.p_eve[i])}</td><td>{fmt(M.p_midmin[i])}</td></>}<td className="font-semibold">{fmt(s.y[i])}</td>
+                  <td>{s.y[i] != null && s.p[i] != null ? sgn(s.y[i] - s.p[i]) : '-'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </Card>
-      <p className="muted">1~4주 앞은 연료비·수급 국면 변화가 가격을 좌우해 정확도가 낮습니다. <b>한 달 범위는 평소 달 기준이며, 연료비·수급 변화가 있는 달은 벗어날 수 있습니다</b> (2026 포함률 57~64%). 참고 전망으로 보세요 (참고 문서 &gt; 한 달 예측).</p>
+      <p className="muted">{next
+        ? <>매월 말일 15시에 다음 달 모든 날의 일평균을 한 번 예측하고, 그달 내내 같은 예측을 보여 줍니다. 대상 달의 가스공사 발전용 요금을 반영합니다. 1~4주 앞은 수급 국면 변화로 빗나갈 수 있으니 참고 전망으로 보세요 (참고 문서 &gt; 한 달 예측).</>
+        : <>1~4주 앞은 연료비·수급 국면 변화가 가격을 좌우해 정확도가 낮습니다. <b>한 달 범위는 평소 달 기준이며, 연료비·수급 변화가 있는 달은 벗어날 수 있습니다.</b> 참고 전망으로 보세요 (참고 문서 &gt; 한 달 예측).</>}</p>
     </div>
   )
 }

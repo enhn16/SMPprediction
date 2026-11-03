@@ -4,8 +4,8 @@
  "모델": {
   "육지": {
    "drop": "LSTM + LightGBM(확장 변수) 평균 (예상 한낮 최저)",
-   "week": "Chronos-2 small + 0.5 × 잔차 보정",
-   "month": "mx v2: Chronos 3종·LSTM·GRU 조합 (저녁은 9개 모델 가중)"
+   "week": "K3: Chronos-2 (평일 미세조정판·휴무일 공변량판) + 0.5 × 잔차 보정",
+   "month": "MM: LightGBM 단독 + 가스공사 발전용 요금 (월말 판단 → 다음 달 일평균)"
   },
   "제주": {
    "drop": "KNN 분류 (피처 63개)",

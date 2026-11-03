@@ -28,9 +28,9 @@ DATA = PROCESSED_DIR / "smp_forecast_app"
 TAB = ROOT / "smp_forecast_app" / "outputs" / "tables"
 T0, T1 = "2026-01-01", "2026-10-18"
 STATS = {"mean": "일평균", "mid": "한낮 11~15시", "eve": "저녁 18~22시", "midmin": "한낮 최저"}
-SRC = {"육지": {"week": DATA / "wz3" / "WZ3_K3_backtest_hourly.csv", "month": DATA / "mx" / "MX_predictions_daily_v2.csv", "drop": ROOT / "drop_classifier" / "outputs" / "tables" / "drop_육지_15h.csv",
+SRC = {"육지": {"week": DATA / "wz3" / "WZ3_K3_backtest_hourly.csv", "month": DATA / "mm" / "MM_predictions_daily.csv", "drop": ROOT / "drop_classifier" / "outputs" / "tables" / "drop_육지_15h.csv",
                "model": {"drop": "LSTM + LightGBM(확장 변수) 평균 (예상 한낮 최저)", "week": "K3: Chronos-2 (평일 미세조정판·휴무일 공변량판) + 0.5 × 잔차 보정",
-                         "month": "mx v2: Chronos 3종·LSTM·GRU 조합 (저녁은 9개 모델 가중)"}},
+                         "month": "MM: LightGBM 단독 + 가스공사 발전용 요금 (월말 판단 → 다음 달 일평균)"}},
        "제주": {"week": DATA / "jeju" / "JWZ_predictions_hourly.csv", "month": DATA / "jeju" / "JMZ_predictions_daily.csv",
                "drop": DATA / "jeju" / "drop_badge_제주.csv",
                "model": {"drop": "KNN 분류 (피처 63개)", "week": "육지 일주일 예측 + 0.25 × 제주 잔차 보정",
@@ -66,11 +66,16 @@ def price_rows(region):
     same4 = {o: ds[off == o].rolling(4, min_periods=3).mean().reindex(full).ffill() for o in (False, True)}
     m = pd.read_csv(SRC[region]["month"], parse_dates=["base_date", "date"])
     m = m[in_test(m["date"])]
+    mm = "H" not in m   # 육지 MM: 월말 판단 → 다음 달, 주차 = 대상 달 1~7·8~14·15~21·22일~
+    if mm:
+        m["H"] = (m["date"] - m["base_date"]).dt.days
     for s, nm in STATS.items():
+        if f"pred_{s}" not in m:
+            continue
         x = m[m[f"y_{s}"].notna() & m[f"pred_{s}"].notna()]
         naive = np.where(x["offday"].astype(bool), same4[True][s].reindex(x["base_date"]).values, same4[False][s].reindex(x["base_date"]).values)
         rows.append({"계통": region, "예측": "한 달", "구분": nm, **metrics(x[f"y_{s}"], x[f"pred_{s}"], x[f"lo_{s}"], x[f"hi_{s}"], naive)})
-        wk = ((x["H"] - 7) // 7 + 1).values   # 1주차 = 7~13일 뒤 … 4주차 = 28~34일 뒤
+        wk = np.minimum((x["H"] - 1) // 7 + 1, 4).values if mm else ((x["H"] - 7) // 7 + 1).values   # 롤링: 1주차 = 7~13일 뒤 … 4주차 = 28~34일 뒤
         for k in range(1, 5):
             i = wk == k
             rows.append({"계통": region, "예측": "한 달", "구분": f"{nm} · {k}주차",
