@@ -275,18 +275,10 @@ def main():
     docs["team"] = team("육지")
     try:
         jeju = region_payload("제주", dayinfo)
-        jc = _json("JD_choice.json")
-        jeju["jdocs"] = {"metrics": _table("JF1_final_metrics.csv"), "weekTest": _table("JWZ3_test2026.csv"),
-                         "monthTest": _table("JMZ2_test2026.csv"), "dropTest": _table_at(t1 / "J3_test2026.csv"),
-                         "weekChoice": _json("JWZ_choice.json"), "monthChoice": _json("JMZ_choice.json"),
-                         "dropChoice": {k: v for k, v in jc.items() if k != "피처 목록"}, "dropFeatures": len(jc.get("피처 목록", [])),
-                         # 비교 후보 (육지 참고 문서와 같은 꼴로 보여 주기 위함)
-                         "weekModels": _table("JWZ1_models.csv", ["모델", "2025 상반기", "2025 하반기", "2025 전체"] + [f"하반기 D+{h}" for h in range(1, 8)])[:20],
-                         "weekEns": _table("JWZ2_ensembles_2025H2.csv", ["앙상블", "구성 수", "2025 하반기", "구성"])[:12],
-                         "monthCompare": _table("JMZ1_compare_2025H2.csv"),
-                         "dropZoo": _table_at(t1 / "J8_zoo_stability_2025.csv")[:12],
-                         "dropCal": drop_cal("제주"), "team": team("제주"),
-                         "rangeAdj": {"choice": _json("RA_choice.json"), "test": _table("RA2_test2026.csv")}}
+        # 제주 참고 문서 (2026-11-03 R2 재선택, JEJU.md 11절): 일주일 JWZ7·한 달 JMZ3·급락 drop_*_제주 + 최종 모델 성적표
+        jeju["jdocs"] = {"team": team("제주"), "weekSelect": _table("JWZ7_select_2025.csv"), "weekTest": _table("JWZ7_test2026.csv"),
+                         "monthSelect": _table("JMZ3_select_2025.csv"), "monthTest": _table("JMZ3_test2026.csv"),
+                         "dropScore": _table_at(t1 / "drop_score_제주.csv"), "dropSelect": _table_at(t1 / "J10_team2_select_2025.csv")}
     except Exception as e:  # noqa: BLE001  제주가 실패해도 육지 화면은 내보냄
         print(f"제주 내보내기 실패: {e!r}")
         jeju = None
