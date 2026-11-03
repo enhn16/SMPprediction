@@ -8,7 +8,7 @@ export function Help({ go }: { go: (r: Route) => void }) {
   const tiles: { r: Route; t: string; v: string; s: string }[] = [
     { r: 'week', t: '내일 급락 경보', v: !dropTarget(W.days[0].date) ? '준비 중' : dr ? `${LEVEL[dr.grade]?.name ?? dr.grade}` : '-', s: !dropTarget(W.days[0].date) ? '제주 평일 급락 예측을 준비하고 있습니다' : `${lab(W.days[0].date)} 한낮 최저 30원 미만 여부` },
     { r: 'week', t: '내일 급등 경보', v: !surgeData() ? '준비 중' : ({ 경보: '경보', 주의: '주의' } as Record<string, string>)[surgeData()!.past[W.days[0].date]?.grade ?? ''] ?? '낮음',
-      s: surgeData() ? `${lab(W.days[0].date)} 하루 최고 SMP 급등 여부` : '제주 급등 예측은 아직 없습니다' },
+      s: surgeData() ? `${lab(W.days[0].date)} 하루 최고 SMP 급등 여부` : '제주는 제공하지 않음 (육지 급등 경보 참고)' },
     { r: 'week', t: '일주일 예측', v: `${fmt(avg(W.days.flatMap((d) => d.p)))}원`, s: `${lab(W.days[0].date)} ~ ${lab(W.days[W.days.length - 1].date)} 평균` },
     { r: 'month', t: '한 달 예측', v: `${fmt(avg(M.p_mean))}원`, s: `${lab(M.d[0])} ~ ${lab(M.d[M.d.length - 1])} 일평균 (참고)` },
   ]

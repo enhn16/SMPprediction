@@ -75,8 +75,9 @@ def _json(name):
 SRC = {
     "육지": {"hourly": DATA / "wz3" / "WZ3_K3_backtest_hourly.csv", "daily": DATA / "mm" / "MM_predictions_daily.csv", "drop": ROOT / "drop_classifier" / "outputs" / "tables" / "drop_육지_15h.csv",   # R1 산출 (2026-10-26 교체)
              "ops": OPS, "logs": ("hourly_log_k3.csv", "mm_log.csv", "drop_log.csv")},   # 한 달 = MM (2026-11-03, R6)
-    "제주": {"hourly": JDIR / "JWZ_predictions_hourly.csv", "daily": JDIR / "JMZ_predictions_daily.csv", "drop": JDIR / "drop_badge_제주.csv",
-             "ops": JDIR / "ops", "logs": ("jwz_log.csv", "jdaily_log.csv", "jdrop_log.csv")},
+    "제주": {"hourly": JDIR / "JWZ7_predictions_hourly.csv", "daily": JDIR / "JMZ3_predictions_daily.csv",   # 2026-11-03 R2: 육지 K3·MM 기반
+             "drop": ROOT / "drop_classifier" / "outputs" / "tables" / "drop_제주_15h.csv",
+             "ops": JDIR / "ops", "logs": ("jwz7_log.csv", "jmm_log.csv", "jdrop_log.csv")},
 }
 
 
@@ -93,8 +94,8 @@ def hourly_frame(region="육지"):
         o = oh[["base_date", "H", "date", "hour", "pred", "lo", "hi"]]
         w = pd.concat([w[~key(w).isin(key(o))], o])
     w = w.reset_index(drop=True)
-    # 육지 K3: 내일(D+1) 범위만 급락·급등 경보로 보정 (RL_choice.json, 2026-11-03). 제주: 휴일·주말 한낮 하한 보정 (RA_choice.json)
-    return range_alert.apply(w) if region == "육지" else range_adjust.apply(w, region)
+    # 육지 K3: 내일(D+1) 범위만 급락·급등 경보로 보정 (RL_choice.json, 2026-11-03). 제주 K3 기반: 보정 없음 (R2, 보정 없이 골랐음)
+    return range_alert.apply(w) if region == "육지" else w
 
 
 def daily_frame(region="육지"):
@@ -103,6 +104,8 @@ def daily_frame(region="육지"):
     om = _log(region, 1, parse_dates=["base_date", "date"])
     if len(om):
         m = pd.concat([m[~m["base_date"].isin(om["base_date"])], om])
+    if "pred" in m and "pred_mean" not in m:   # 제주 JMZ3: 일평균 하나 → 웹 공통 열 이름
+        m = m.rename(columns={"pred": "pred_mean", "lo": "lo_mean", "hi": "hi_mean", "y": "y_mean"})
     if "H" not in m:   # 육지 MM: 월말 판단 → 다음 달 (H = 판단일부터 며칠 뒤)
         m["H"] = (m["date"] - m["base_date"]).dt.days
     return m
@@ -119,8 +122,10 @@ def drop_meta(region, drop):
         lines = ch.get("문턱 표시") or {k: round(float(ch["문턱"][k]), 1) for k in ("주의", "경보")}
         return {"warn": pr(ch["문턱"]["주의"]), "strong": pr(ch["문턱"]["경보"]), "real": real, "lines": lines,
                 "model": "급락 예측 모델(LSTM + LightGBM 평균)"}
-    thr = _json("JD_choice.json").get("등급 문턱 확률", {})
-    return {"warn": thr.get("주의"), "strong": thr.get("강한 경보"), "real": real, "model": "제주 급락 예측 모델(KNN 분류: 과거 비슷한 날 25일)"}
+    ch = _json_at(ROOT / "drop_classifier" / "outputs" / "tables" / "drop_choice_제주.json")   # 2026-11-03 R2: 전체 날 문턱 (점수 → 확률식)
+    a, b = ch["확률식"]["a"], ch["확률식"]["b"]
+    pr = lambda x: round(float(1 / (1 + np.exp(-(a * x + b)))), 4)
+    return {"warn": pr(ch["문턱"]["주의"]), "strong": pr(ch["문턱"]["경보"]), "real": real, "model": "제주 급락 예측 모델(KNN 분류, 모든 날)"}
 
 
 def drop_cal(region):
@@ -188,7 +193,7 @@ def region_payload(region, dayinfo):
     od = _log(region, 2)
     if len(od):
         drop = pd.concat([drop[~drop["date"].isin(od["date"])], od])
-    drops = {r.date: {"grade": r.grade, "min": _n(r.pred_min), "prob": round(float(r.prob), 3)} for r in drop.itertuples()}
+    drops = {r.date: {"grade": r.grade, "min": _n(getattr(r, "pred_min", None)) if region == "육지" else None, "prob": round(float(r.prob), 3)} for r in drop.itertuples()}
 
     # 일주일: 7개 지평이 모두 있는 가장 최근 기준일
     full = w[w["pred"].notna()].groupby("base_date")["H"].nunique()   # 예측값이 실제로 있는 기준일만
@@ -208,7 +213,7 @@ def region_payload(region, dayinfo):
 
     # 한 달
     m = daily_frame(region)
-    mmode = region == "육지"   # 육지 = 월말 판단 → 다음 달 전체 (MM), 제주 = 매일 7~34일 뒤
+    mmode = True   # 육지·제주 모두 월말 판단 → 다음 달 전체 (2026-11-03)
     stats = [s for s in STATS if f"pred_{s}" in m]
     fullm = m[m["pred_mean"].notna()].groupby("base_date")["H"].nunique()   # 빈 백테스트 행(피처만 있는 최신 기준일) 제외
     mbase = fullm[fullm >= 28].index.max()

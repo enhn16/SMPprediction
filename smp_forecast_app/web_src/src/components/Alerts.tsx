@@ -11,8 +11,9 @@ function Meter({ lv, p, warn, strong }: { lv: Lv; p: number; warn: number; stron
   const seg = (k: 'low' | 'warn' | 'strong', w: number, r: string) => (
     <span className={`h-full ${r}`} style={{ width: `${w * 100}%`, background: lv === k ? LV[k].fill : LV[k].soft }} />
   )
-  const mark = (v: number, t: string) => (
-    <span className="absolute top-0 -translate-x-1/2 whitespace-nowrap" style={{ left: `${v * 100}%` }}>{t} {pc(v)}</span>
+  const near = strong - warn < 0.12
+  const mark = (v: number, t: string, side: 'l' | 'r') => (
+    <span className={`absolute top-0 whitespace-nowrap ${!near ? '-translate-x-1/2' : side === 'l' ? '-translate-x-full pr-1' : 'pl-1'}`} style={{ left: `${v * 100}%` }}>{t} {pc(v)}</span>
   )
   return (
     <div className="mt-3">
@@ -20,12 +21,12 @@ function Meter({ lv, p, warn, strong }: { lv: Lv; p: number; warn: number; stron
         {seg('low', warn, 'rounded-l-full')}{seg('warn', strong - warn, '')}{seg('strong', 1 - strong, 'rounded-r-full')}
         <span className="absolute -top-[5px] h-4 w-4 -translate-x-1/2 rounded-full border-[3px] border-surface bg-ink" style={{ left: `${Math.min(100, Math.max(0, p * 100))}%` }} />
       </div>
-      <div className="relative mt-1.5 h-4 text-[11px] text-mute tabular-nums">{mark(warn, '주의')}{mark(strong, '경보')}</div>
+      <div className="relative mt-1.5 h-4 text-[11px] text-mute tabular-nums">{mark(warn, '주의', 'l')}{mark(strong, '경보', 'r')}</div>
     </div>
   )
 }
 
-function Card({ kind, lv, prob, date, sub, why, note, warn, strong }: { kind: 'drop' | 'surge'; lv: Lv; prob?: number | null; date: string; sub: string; why?: Why; note?: string; warn: number; strong: number }) {
+function Card({ kind, lv, prob, date, sub, why, note, naName, warn, strong }: { kind: 'drop' | 'surge'; lv: Lv; prob?: number | null; date: string; sub: string; why?: Why; note?: string; naName?: string; warn: number; strong: number }) {
   const c = lv === 'na' ? null : LV[lv]
   return (
     <section className="card px-5 py-4">
@@ -34,7 +35,7 @@ function Card({ kind, lv, prob, date, sub, why, note, warn, strong }: { kind: 'd
         <span className="muted tabular-nums">{date} · {sub}</span>
       </div>
       <div className="mt-2 flex flex-wrap items-baseline gap-x-2.5">
-        <span className="text-[20px] font-bold leading-tight" style={{ color: c ? c.text : 'var(--color-mute)' }}>{NAME[lv]}</span>
+        <span className="text-[20px] font-bold leading-tight" style={{ color: c ? c.text : 'var(--color-mute)' }}>{lv === 'na' && naName ? naName : NAME[lv]}</span>
         {lv !== 'na' && prob != null && <span className="text-[13px] font-semibold text-sub tabular-nums">{pc(prob)}</span>}
         {lv === 'na' && <span className="text-[13px] text-sub">{note}</span>}
       </div>
@@ -61,14 +62,15 @@ export function Alerts({ iso }: { iso: string }) {
   const d = D.week.drop, s = surgeData()?.past[iso]
   const dropLv: Lv = !dropTarget(iso) || !d ? 'na' : LEVEL[d.grade]?.key ?? 'low'
   const surgeLv: Lv = !s ? 'na' : s.grade === '경보' ? 'strong' : s.grade === '주의' ? 'warn' : 'low'
-  const why = D.why ?? {}
+  const why = REGION === '육지' ? D.why ?? {} : {}
   return (
     <div className="grid gap-5 md:grid-cols-2">
       <Card kind="drop" lv={dropLv} prob={d?.prob} date={lab(iso)} sub="한낮 11~15시" why={why.drop?.[iso]} warn={T_WARN} strong={T_STRONG}
-        note={REGION === '제주' ? '제주 평일 급락 예측을 준비하고 있습니다.' : '예측이 아직 없습니다.'} />
+        note="예측이 아직 없습니다." />
       <Card kind="surge" lv={surgeLv} prob={s?.prob} date={lab(iso)} sub="하루 최고 가격" why={why.surge?.[iso]}
         warn={surgeData()?.meta.warnP ?? 0.04} strong={surgeData()?.meta.strongP ?? 0.19}
-        note={REGION === '제주' ? '제주 급등 예측은 아직 없습니다.' : '예측이 아직 없습니다.'} />
+        naName={REGION === '제주' ? '제공 안 함' : undefined}
+        note={REGION === '제주' ? '제주 급등 경보는 제공하지 않습니다. 2025년 이후 제주 급등은 연 6~7회뿐이고 대부분 당일 사정에 따른 단발성이라 전날 정보로 미리 알 수 없었습니다. 육지와 함께 오르는 날은 육지 급등 경보를 참고하세요.' : '예측이 아직 없습니다.'} />
     </div>
   )
 }

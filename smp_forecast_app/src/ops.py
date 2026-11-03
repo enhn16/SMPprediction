@@ -114,12 +114,7 @@ def train_resid():
 
 def train():
     """매주 일요일: 일주일 잔차 보정 + 한 달 예측(mx v2: 표 모델·LSTM·GRU, 약 5분) + 제주."""
-    from smp_forecast_app.src import mx_ops
-    train_resid()
-    t0 = time.time()
-    log("학습 시작 (한 달 mx v2)")
-    mx_ops.train()
-    log(f"한 달 학습 완료 ({time.time()-t0:.0f}s)")
+    # 2026-11-03: 육지 일주일 K3(월마다 자동)·한 달 MM(월말마다)은 각자 재학습 → 이전 모델(train_resid, mx_ops.train)은 끔
     try:
         from smp_forecast_app.src import jz_ops
         jz_ops.train()   # 제주 잔차 보정(H별) + 급락 고정 모델
@@ -330,11 +325,11 @@ def _jappend(name, new, keys):
 
 
 def jeju_bases(today):
-    """제주 산출할 기준일: 제주 백테스트·운영 기록 다음 날부터, 육지 일주일이 산출된 기준일까지 (최대 14일)."""
-    done = pd.read_csv(JDIR / "JWZ_predictions_hourly.csv", usecols=["base_date"], parse_dates=["base_date"])["base_date"]
-    jl = _jread("jwz_log.csv", usecols=["base_date"], parse_dates=["base_date"])
+    """제주 산출할 기준일: 제주 백테스트·운영 기록 다음 날부터, 육지 일주일 K3가 산출된 기준일까지 (최대 14일)."""
+    done = pd.read_csv(JDIR / "JWZ7_predictions_hourly.csv", usecols=["base_date"], parse_dates=["base_date"])["base_date"]
+    jl = _jread("jwz7_log.csv", usecols=["base_date"], parse_dates=["base_date"])
     last = max(done.max(), jl["base_date"].max()) if len(jl) else done.max()
-    land = set(_read("hourly_log.csv", usecols=["base_date"], parse_dates=["base_date"])["base_date"])
+    land = set(_read("hourly_log_k3.csv", usecols=["base_date"], parse_dates=["base_date"])["base_date"])
     start = max(last + pd.Timedelta(days=1), today - pd.Timedelta(days=MAX_CATCHUP - 1))
     return [d for d in pd.date_range(start, today) if d in land]
 
@@ -347,9 +342,15 @@ def jeju(today, run_at):
         log("제주: 새 기준일 없음")
         return
     log(f"제주: 기준일 {bases[0].date()} ~ {bases[-1].date()} ({len(bases)}일) 산출")
-    steps = (("일주일", jz_ops.weekly, None, None),                       # jwz_log.csv는 jz_ops가 직접 기록
-             ("급락 경고", jz_ops.drops, "jdrop_log.csv", ["date"]),
-             ("한 달", jz_ops.monthly, "jdaily_log.csv", ["base_date", "H"]))
+    # 2026-11-03 (R2, JEJU_K3_HANDOFF.md): 일주일 = 육지 K3 + 제주 보정(jwz7_log는 jz_ops가 기록), 급락 = 전체 날 문턱,
+    # 한 달 = 육지 MM 그대로 + 제주 범위 (월말 판단, 육지 mm_log의 마지막 판단을 받음)
+    def month(_bases):
+        lm = _read("mm_log.csv", parse_dates=["base_date", "date"])
+        lm = lm[lm["base_date"] == lm["base_date"].max()].rename(columns={"pred_mean": "pred"})
+        return jz_ops.monthly_final(lm) if len(lm) else pd.DataFrame()
+    steps = (("일주일", lambda b: jz_ops.weekly(b, land="k3"), None, None),
+             ("급락 경고", lambda b: jz_ops.drops(b, version="all"), "jdrop_log.csv", ["date"]),
+             ("한 달", month, "jmm_log.csv", ["base_date", "date"]))
     for name, fn, out, keys in steps:
         try:
             r = fn(bases)
@@ -378,7 +379,7 @@ def last_due():
 
 def daily():
     # 예약 시각 외에 로그온·절전 해제 때도 호출되므로, 산출할 기준일이 없으면 수집 없이 바로 끝낸다
-    done = _read("hourly_log.csv", parse_dates=["base_date"])
+    done = _read("hourly_log_k3.csv", parse_dates=["base_date"])
     due = last_due()
     if len(done) and done["base_date"].max() >= due and not jeju_bases(due):
         print(f"기준일 {due.date()}까지 육지·제주 모두 이미 산출됨 — 건너뜀", flush=True)
@@ -404,7 +405,7 @@ def daily():
         run(["common.collect.holidays", str(today.year), str(today.year + 1)])
     features_daily.main()
     last_act = load_smp_actual("육지")["date"].max()
-    done = _read("hourly_log.csv", parse_dates=["base_date"])
+    done = _read("hourly_log_k3.csv", parse_dates=["base_date"])
     start = done["base_date"].max() + pd.Timedelta(days=1) if len(done) else today
     start = max(start, today - pd.Timedelta(days=MAX_CATCHUP - 1))
     bases = [d for d in pd.date_range(start, today) if d <= last_act]
@@ -412,7 +413,7 @@ def daily():
         log("새 기준일 없음 (이미 산출됨)")
     else:
         log(f"기준일 {bases[0].date()} ~ {bases[-1].date()} ({len(bases)}일) 산출" + (" — 지연 산출 포함" if len(bases) > 1 else ""))
-        for name, fn in (("일주일 K3", weekly_k3), ("일주일(제주 입력용)", weekly), ("한 달 MM", monthly_mm), ("한 달(제주 입력용)", monthly), ("급락 경고", drops), ("급등 경보", surges), ("경보 근거", reasons)):
+        for name, fn in (("일주일 K3", weekly_k3), ("한 달 MM", monthly_mm), ("급락 경고", drops), ("급등 경보", surges), ("경보 근거", reasons)):
             try:
                 fn(bases, run_at)
                 log(f"{name} 완료")

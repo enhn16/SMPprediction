@@ -81,6 +81,6 @@ export const LEVEL: Record<string, { key: 'low' | 'warn' | 'strong'; name: strin
 }
 export const info = (d: string) => D.dayinfo[d] ?? { dt: '', off: false }
 // 급락 경보 대상일: 육지는 모든 날(팀 규칙 3, 10/28). 제주는 전체 날 모델(R2)이 나오기 전까지 휴일·주말만
-export const dropTarget = (d: string) => REGION === '육지' || info(d).off
+export const dropTarget = (_d: string) => true   // 급락 = 모든 날 (제주도 2026-11-03부터)
 /** 내일 급등 경보 (R4): 육지만 — 제주를 볼 때는 없음 */
 export const surgeData = (): SurgeData | null => (REGION === '육지' ? ROOT?.surge ?? null : null)

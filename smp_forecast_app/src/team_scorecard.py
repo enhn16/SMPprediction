@@ -32,10 +32,10 @@ STATS = {"mean": "일평균", "mid": "한낮 11~15시", "eve": "저녁 18~22시"
 SRC = {"육지": {"week": DATA / "wz3" / "WZ3_K3_backtest_hourly.csv", "month": DATA / "mm" / "MM_predictions_daily.csv", "drop": ROOT / "drop_classifier" / "outputs" / "tables" / "drop_육지_15h.csv",
                "model": {"drop": "LSTM + LightGBM(확장 변수) 평균 (예상 한낮 최저)", "week": "K3: Chronos-2 (평일 미세조정판·휴무일 공변량판) + 0.5 × 잔차 보정",
                          "month": "MM: LightGBM 단독 + 가스공사 발전용 요금 (월말 판단 → 다음 달 일평균)"}},
-       "제주": {"week": DATA / "jeju" / "JWZ_predictions_hourly.csv", "month": DATA / "jeju" / "JMZ_predictions_daily.csv",
-               "drop": DATA / "jeju" / "drop_badge_제주.csv",
-               "model": {"drop": "KNN 분류 (피처 63개)", "week": "육지 일주일 예측 + 0.25 × 제주 잔차 보정",
-                         "month": "육지 한 달 예측 + 지표별 제주−육지 차이"}}}
+       "제주": {"week": DATA / "jeju" / "JWZ7_predictions_hourly.csv", "month": DATA / "jeju" / "JMZ3_predictions_daily.csv",
+               "drop": ROOT / "drop_classifier" / "outputs" / "tables" / "drop_제주_15h.csv",
+               "model": {"drop": "KNN 분류 (피처 63개, 모든 날 문턱)", "week": "육지 K3 + 0.25 × 제주 보정 (시간별 제주 피처)",
+                         "month": "육지 한 달(MM) 그대로 + 제주 범위 (월말 판단 → 다음 달 일평균)"}}}
 
 
 def in_test(d):
@@ -65,9 +65,13 @@ def price_rows(region):
     same4 = {o: ds[off == o].rolling(4, min_periods=3).mean().reindex(full).ffill() for o in (False, True)}
     m = pd.read_csv(SRC[region]["month"], parse_dates=["base_date", "date"])
     m = m[in_test(m["date"])]
-    mm = "H" not in m   # 육지 MM: 월말 판단 → 다음 달, 주차 = 대상 달 1~7·8~14·15~21·22일~
-    if mm:
+    if "pred" in m and "pred_mean" not in m:   # 제주 JMZ3 열 이름 → 공통
+        m = m.rename(columns={"pred": "pred_mean", "lo": "lo_mean", "hi": "hi_mean", "y": "y_mean"})
+    mm = bool(m["base_date"].dt.is_month_end.all())   # 월말 판단 → 다음 달 (육지 MM·제주 JMZ3), 주차 = 대상 달 1~7·8~14·15~21·22일~
+    if "H" not in m:
         m["H"] = (m["date"] - m["base_date"]).dt.days
+    if "offday" not in m:   # 제주 JMZ3에는 휴무일 열이 없음 → 달력
+        m["offday"] = m["date"].map(off)
     for s, nm in STATS.items():
         if f"pred_{s}" not in m:
             continue
@@ -159,7 +163,7 @@ def main():
     drop.round(4).to_csv(TAB / "T2_team_drop.csv", index=False, encoding="utf-8-sig")
     surge = pd.DataFrame([surge_row()])
     surge.round(4).to_csv(TAB / "T3_team_surge.csv", index=False, encoding="utf-8-sig")
-    info = {"시험 기간": f"{T0} ~ {T1}", "급락일": "모든 날(평일 포함), 11~15시 최저 SMP 30원 미만 — 공식 = 전체 날, 휴일·주말은 참고 (제주는 전체 날 산출 전이라 휴일·주말만)",
+    info = {"시험 기간": f"{T0} ~ {T1}", "급락일": "모든 날(평일 포함), 11~15시 최저 SMP 30원 미만 — 공식 = 전체 날, 휴일·주말은 참고",
             "급등일": "그날 최고 SMP ≥ 직전 28일 일 최고 중앙값 × 1.25, 모든 날 (휴무일은 경보 없음)",
             "모델": {reg: v["model"] for reg, v in SRC.items()},
             "범위": "일주일·한 달 범위는 모델 범위 그대로 (웹의 경보·휴일 하한 보정 전)",
