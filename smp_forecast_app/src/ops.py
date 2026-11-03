@@ -238,6 +238,11 @@ def weekly_k3(bases, run_at):
     old = _read("hourly_log_k3.csv", usecols=["base_date"], parse_dates=["base_date"])
     start = old["base_date"].max() + pd.Timedelta(days=1) if len(old) else min(bases)
     todo = sorted(set(pd.date_range(max(start, max(bases) - pd.Timedelta(days=MAX_CATCHUP - 1)), max(bases))) | set(bases))
+    # 연 1회 미세조정: 기준일 12/31부터 그해 마감판을 쓴다 → 판이 없으면 먼저 만든다 (CPU 약 1시간, 그날 산출이 그만큼 늦어짐)
+    for y in sorted({wz3_ops.ckpt_year(b) for b in todo}):
+        if y >= 2025 and not (wz3_ops.W3 / "ft" / f"ft{y}f" / "finetuned-ckpt" / "model.safetensors").exists():
+            log(f"일주일 K3: {y}년 마감 미세조정판이 없어 먼저 학습 (약 1시간)")
+            run(["smp_forecast_app.src.wz3_ops", "--finetune", str(y)], timeout=4 * 3600)
     r = wz3_ops.weekly(todo, stage="15h")
     if len(r):
         r = r.assign(run_at=run_at)

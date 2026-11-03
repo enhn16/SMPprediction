@@ -238,7 +238,9 @@ def main():
         "week": {"models": _table("WZ1_models.csv"),
                  "ens": [{k: (v.replace("(현업 방식)", "(기존 운영 방식)") if isinstance(v, str) else v) for k, v in r.items()}   # 화면 표기
                          for r in _table("WZ2_ensembles_2025H2.csv")], "test": _table("WZ3_test2026.csv"),
-                 "choice": _json("WZ_choice.json")},
+                 "choice": _json("WZ_choice.json"),
+                 # 일주일 K3 (2026-11-03, R3 WEEK_K3_HANDOFF.md): 설정 + 지금 모델과 나란히 본 성적 (2025 하반기 검증 · 2026 시험)
+                 "k3": _json("WZ3_K3_choice.json"), "k3Score": _table("WZ3_K3_score.csv")},
         # 한 달 = R3 mx v2 (2026-10-27 교체, docs/MONTH.md)
         "month": {"models": _table("MX1_models_v2.csv"), "ens": _table("MX2_ensembles_2025_v2.csv"), "test": _table("MX4_test2026_v2.csv"),
                   "choice": _json("MX_choice_v2.json")},

@@ -44,7 +44,7 @@ const NotUsed = () => (
 )
 
 const DATA_HOURLY = [
-  ['시간별 SMP (육지)', 'Chronos 입력: 최근 2,048시간(약 85일). 잔차 보정: 어제·같은 유형일·28일 평균 대비 차이', '기준일 SMP는 전날 저녁 공표 → 기준일 15시에 확보'],
+  ['시간별 SMP (육지)', 'Chronos 입력: 최근 2,048시간(약 85일). 오차 보정: 어제·같은 유형일·28일 평균 대비 차이', '기준일 SMP는 전날 저녁 공표 → 기준일 15시에 확보'],
   ['달력 (휴무일·요일유형·명절·근로자의날, 앞뒤 휴무)', 'Chronos 공변량(과거·미래), 잔차 보정 피처', '사전 확정 (천문연구원 특일정보)'],
   ['전력거래소 주간 전력수요 전망', '대상일 최대부하, 전망 내 비율, 전날 대비', '게시 다음 날부터 (게시판 이미지 OCR + 전력정보앱)'],
   ['기상청 단기 육상예보 (하늘·강수확률·기온)', 'D+1~D+3 대상일 오전·오후', '기준일 11시(없으면 05시) 발표분'],
@@ -140,7 +140,7 @@ function Overview() {
   const w = met('일주일', '2026', '전체'), w1 = met('일주일 D+1', '2026', '전체'), m = met('한 달', '2026', '일평균')
   const final = [
     { a: '내일 급락 경보', m: `LSTM + LightGBM(확장 변수) 평균(2023~2025 학습) → 내일 한낮 최저 SMP → 주의(≤${D.dropMeta.lines?.['주의'] ?? '-'}원)·경보(≤${D.dropMeta.lines?.['경보'] ?? '-'}원), 급락 확률`, s: '' },
-    { a: '일주일 예측 (D+1~D+7, 시간별)', m: `Chronos-2 small + ${WZC['잔차 보정 λ'] ?? 0.5} × 잔차 보정 (외부 정보 LightGBM), 휴일·주말 한낮 범위 하한 보정`, s: `MAE ${n2(w.MAE)}원 · 포함률 ${pct(w['포함률'])} · 폭 ${fmt(w['평균 폭'])}원 (내일 시간별 MAE ${n2(w1.MAE)}원)` },
+    { a: '일주일 예측 (D+1~D+7, 시간별)', m: 'K3: 평일 Chronos-2(우리 자료로 연 1회 추가 학습) · 휴무일 Chronos-2(미래 정보 포함) + 0.5 × 오차 보정 (LightGBM)', s: `MAE ${n2(w.MAE)}원 · 포함률 ${pct(w['포함률'])} · 폭 ${fmt(w['평균 폭'])}원 (내일 시간별 MAE ${n2(w1.MAE)}원)` },
     { a: '한 달 예측 (7~34일 뒤, 일별)', m: 'Chronos 3종 × 0.75 + LSTM·GRU × 0.25 (저녁은 9개 모델 지평별 가중), 2023~ 학습', s: `일평균 MAE ${n2(m.MAE)}원 · 포함률 ${pct(m['포함률'])} (참고 전망)` },
   ]
   return (
@@ -289,10 +289,17 @@ function SurgeDoc() {
 }
 
 function WeekDoc() {
-  const W = D.perf.week ?? ({} as any)
-  const t = met('일주일', '2026', '전체'), t1 = met('일주일 D+1', '2026', '전체')
-  const hs = [1, 2, 3, 4, 5, 6, 7].map((h) => met('일주일', '2026', 'D+' + h))
-  const nd = D.docs?.nextday ?? []
+  const K: Row[] = D.perf.week?.k3Score ?? []
+  const k = (per: string, seg: string, m = 'K3'): Row => K.find((r) => String(r['기간']).startsWith(per) && r['구분'] === seg && r['모델'] === m) ?? {}
+  const t = k('2026', '전체'), t0 = k('2026', '전체', '지금 모델'), t1 = k('2026', 'D+1'), v = k('2025', '전체'), v0 = k('2025', '전체', '지금 모델')
+  const hs = [1, 2, 3, 4, 5, 6, 7].map((h) => k('2026', 'D+' + h))
+  // 구분마다 한 줄: 이전 모델 → K3
+  const cmp = (per: string) => [...new Set(K.filter((r) => String(r['기간']).startsWith(per)).map((r) => r['구분'] as string))].map((g) => {
+    const a = k(per, g, '지금 모델'), b = k(per, g)
+    return { 구분: g, m0: a.MAE, m1: b.MAE, c0: a['포함률'], c1: b['포함률'], w0: a['평균 폭'], w1: b['평균 폭'], s0: a['구간점수'], s1: b['구간점수'] }
+  })
+  const CMPCOLS: Col[] = [{ k: '구분', t: '구분', l: true }, { k: 'm0', t: 'MAE 이전', f: n2 }, { k: 'm1', t: 'MAE K3', f: n2 }, { k: 'c0', t: '포함률 이전', f: (x) => pct(x) }, { k: 'c1', t: '포함률 K3', f: (x) => pct(x) },
+    { k: 'w0', t: '폭 이전', f: (x) => fmt(x) }, { k: 'w1', t: '폭 K3', f: (x) => fmt(x) }, { k: 's0', t: '구간점수 이전', f: (x) => fmt(x) }, { k: 's1', t: '구간점수 K3', f: (x) => fmt(x) }]
   return (
     <>
       <Kpis items={[
@@ -302,46 +309,33 @@ function WeekDoc() {
         { k: '평균 폭', v: fmt(t['평균 폭']) + '원', s: `D+1 ${fmt(hs[0]['평균 폭'])} → D+7 ${fmt(hs[6]['평균 폭'])}` },
         { k: '내일 시간별 (D+1)', v: n2(t1.MAE) + '원', s: `포함률 ${pct(t1['포함률'])} · rMAE ${n3(t1.rMAE)}` },
       ]} />
-      <Sec title={`최종 모델: Chronos-2 small + ${WZC['잔차 보정 λ'] ?? 0.5} × 잔차 보정`}>
+      <Sec title="최종 모델: K3" sub="2026-11-03 확정">
+        <p>Chronos-2(Amazon 공개 시계열 기초모델)를 평일과 휴무일에 다르게 쓰고, Chronos가 모르는 외부 정보로 오차를 고칩니다.</p>
         <ol>
-          <li><b>Chronos-2 small</b> (Amazon 공개 시계열 기초모델, 자체 자료로 추가 학습 없음): 최근 85일 시간별 SMP와 휴무일 달력을 넣으면 앞으로 168시간의 중앙값·분위수를 냅니다. 매일 최근 흐름에 바로 맞춥니다.</li>
-          <li><b>잔차 보정</b> (LightGBM, 며칠 뒤마다 따로): Chronos는 SMP 과거값과 달력만 봅니다. 그래서 <b>Chronos가 틀린 만큼(공표 − Chronos)</b>을 수요전망·날씨예보·연료비·태양광 설비로 예측해 그 절반(λ = 0.5)을 더합니다. 매월(운영은 매주) 재학습.</li>
-          <li><b>80% 범위</b>: D+1은 Chronos-2 분위수(10%·90%)를 최근 90일 실제 이탈 폭으로 보정(시간대 묶음 × 휴무일), D+2~D+7은 Chronos-2 분위수 그대로 (2025 하반기 구간점수 최소).</li>
+          <li><b>평일</b>: Chronos-2 small을 <b>우리 SMP 자료로 1년에 한 번(12월 31일) 추가 학습</b>한 판. 최근 85일 시간별 SMP와 휴무일 달력을 넣어 앞으로 168시간을 예측합니다.</li>
+          <li><b>휴무일</b>: 추가 학습 없는 Chronos-2 small에 <b>미래 정보</b>(주간 전력수요 전망, 오후 하늘·강수확률 예보, 연료비)를 함께 넣은 판.</li>
+          <li><b>오차 보정</b> (LightGBM, 며칠 뒤마다 따로, 매월 자동 재학습): Chronos가 틀린 만큼(공표 − Chronos)을 수요전망·날씨예보·연료비·태양광 설비로 예측해 그 절반(λ = {D.perf.week?.k3?.['λ'] ?? 0.5})을 더합니다.</li>
+          <li><b>80% 범위</b>: Chronos-2 기본판의 10%·90% 분위수를 최종 예측 쪽으로 옮긴 뒤, 직전 365일 실제 이탈 폭으로 위아래를 같이 넓히거나 좁힙니다 (시간대 묶음 × 휴무일). 휴일·주말 하한 보정은 붙이지 않습니다.</li>
         </ol>
       </Sec>
       <Sec title="선택 이유">
         <ul>
-          <li>단일 모델 18종 중 Chronos 계열 3종이 1~3위. 학습형 모델은 2025 하반기 수준 변화에 크게 나빠졌습니다 (LightGBM 9.72 → 10.94, CatBoost 9.81 → 14.23).</li>
-          <li>Chronos에 LSTM·GRU·LightGBM을 <b>그대로 섞으면 오히려 나빠짐</b> (9.49~9.59 vs 단독 9.41): 성능 차이가 2원 가까이 나고 오차 상관이 0.79로 높아 서로 보완하지 못합니다.</li>
-          <li>대신 <b>Chronos가 모르는 외부 정보로 Chronos의 오차를 고치는</b> 잔차 보정이 2025 하반기 9.21원으로 1위 (−2.2%). 모든 지평·휴무일·저녁에서 개선, 2026 평가에서도 9.81 → {n2(t.MAE)}원.</li>
+          <li><b>2025년 자료로만</b> 개선 방향 10여 가지(다른 기초모델, 추가 학습, 팀 데이터 밖 공급 자료, 팀원 방식, 쌓기, 분기 재학습 등)를 검증했습니다.</li>
+          <li>채택 기준: <b>2025 MAE가 0.05원 넘게 좋아지고 2024에서도 좋아질 것.</b> 평일 추가 학습과 휴무일 미래 정보만 통과했습니다. 2025 하반기 {n2(v0.MAE)} → {n2(v.MAE)}원, 포함률 {pct(v0['포함률'])} → {pct(v['포함률'])}.</li>
+          <li>팀 데이터 13종 밖 자료(원전 정비, 발전원별 실적, 출력제어, 변동비 순위)는 모두 탈락해 쓰지 않습니다.</li>
+          <li>2026은 확정 뒤 <b>한 번만</b> 채점했습니다: MAE {n2(t0.MAE)} → {n2(t.MAE)}원으로 비슷하고, 포함률은 {pct(t0['포함률'])} → {pct(t['포함률'])}로 목표에 가까워졌습니다.</li>
         </ul>
       </Sec>
-      <Sec title="비교한 단일 모델" sub="2025년 MAE (원), 모두 같은 조건">
-        <Table rows={W.models ?? []} sel={(r) => r === (W.models ?? [])[0]} cols={[{ k: '모델', t: '모델', l: true }, { k: '2025 상반기', t: '상반기', f: n2 }, { k: '2025 하반기', t: '하반기', f: n2 }, { k: '2025 전체', t: '전체', f: n2 },
-          ...[1, 2, 3, 4, 5, 6, 7].map((x) => ({ k: `2025 D+${x}`, t: `D+${x}`, f: n2 }))]} />
-        <p className="!text-[12.5px] !text-mute">재학습: LightGBM·XGBoost·Ridge 매월, CatBoost·랜덤포레스트·엑스트라트리·EBM·MLP·TabPFN 분기. LSTM·GRU·1D-CNN·Transformer는 과거 7일 입력 소형(CPU 시간 제약).</p>
+      <Sec title="이전 모델과 비교" sub="같은 날짜·시간끼리 · 이전 모델 = Chronos-2 small + 0.5 × 오차 보정">
+        <Table caption={<>2026 평가 ({TEAM_PERIOD})</>} rows={cmp('2026')} csv="육지_일주일_K3_2026" cols={CMPCOLS} />
+        <Table caption={<>2025 하반기 (선택 구간)</>} rows={cmp('2025')} csv="육지_일주일_K3_2025하반기" cols={CMPCOLS} />
       </Sec>
-      <Sec title="앙상블·보정 후보" sub="2025 상반기로 맞추고 하반기 MAE로 비교">
-        <Table rows={W.ens ?? []} sel={(r) => String(r['앙상블']).startsWith(WZC['선택 앙상블'] ?? '@')} cols={[{ k: '앙상블', t: '후보', l: true }, { k: '구성 수', t: '모델 수' }, { k: '2025 하반기', t: '2025 하반기 MAE', f: n3 }, { k: '구성', t: '구성', l: true, w: true }]} />
-      </Sec>
-      <Sec title="내일 시간별 가격 (D+1)" sub="같은 날짜·시간끼리 MAE (원)">
-        <p>내일 24시간 가격은 이 모델의 D+1입니다. 내일만 따로 만든 모델(LightGBM·CatBoost 앙상블 + 급락 결합)보다 2025·2026 모두 낮은 오차였습니다.</p>
-        <Table rows={nd.map((r) => ({ ...r, 모델: String(r['모델']).replace(' (최종)', ' (일주일 모델 D+1)') }))} sel={(r) => String(r['모델']).includes('일주일 모델')}
-          cols={[{ k: '모델', t: '모델', l: true }, { k: '2025 상반기', t: '2025 상반기', f: n2 }, { k: '2025 하반기', t: '2025 하반기', f: n2 }, { k: '2025 전체', t: '2025 전체', f: n2 }, { k: '2026 (평가)', t: '2026 (평가)', f: n2 }]} />
-      </Sec>
-      <RangeAdjSec ra={(D.docs as any)?.rangeAdj} region="육지" />
       <Sec title="사용 데이터"><DataTable rows={DATA_HOURLY} /><p className="!text-[13px] font-semibold">쓰지 않은 정보</p><NotUsed /></Sec>
-      <Sec title="2026 평가 성적표" sub={testRange}>
-        <Table caption={<>구간별</>} rows={metRows('일주일', '2026', (s) => !s.startsWith('D+'))} csv="육지_일주일_2026_구간별" cols={METCOLS} />
-        
-        <Table caption={<>며칠 뒤별</>} rows={metRows('일주일', '2026', (s) => s.startsWith('D+'))} csv="육지_일주일_2026_지평별" cols={METCOLS} />
-        
-        <Table caption={<>2025 하반기 (선택 구간)</>} rows={metRows('일주일', '2025', (s) => !s.startsWith('D+'))} csv="육지_일주일_2025하반기" cols={METCOLS} />
-      </Sec>
       <Sec title="한계">
         <ul>
-          <li>멀리 볼수록 상한 위 이탈이 늘어납니다 (D+7 약 15%) — 갑작스런 가격 상승을 범위가 늦게 따라갑니다.</li>
-          <li>휴무일 한낮·급락 시간은 오차가 큽니다. 급락은 내일 급락 경보를 함께 보세요.</li>
+          <li>휴무일 한낮 급락(30원 미만) 시간은 오차가 큽니다 (2026 MAE 약 {fmt(k('2026', '급락 시간(30원 미만)').MAE, 0)}원). 급락은 내일 급락 경보를 함께 보세요.</li>
+          <li>멀리 볼수록 오차가 커집니다 (D+1 {n2(hs[0].MAE)} → D+7 {n2(hs[6].MAE)}원).</li>
+          <li>2026 개선 폭은 0.02원으로 작습니다. 2025 개선 폭은 고르는 데 쓴 기간의 값이라 그대로 기대하면 안 됩니다.</li>
         </ul>
       </Sec>
     </>
