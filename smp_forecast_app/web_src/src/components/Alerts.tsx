@@ -64,13 +64,14 @@ export function Alerts({ iso }: { iso: string }) {
   const surgeLv: Lv = !s ? 'na' : s.grade === '경보' ? 'strong' : s.grade === '주의' ? 'warn' : 'low'
   const why = REGION === '육지' ? D.why ?? {} : {}
   return (
-    <div className="grid gap-5 md:grid-cols-2">
+    <div className={`grid gap-5 ${REGION === '육지' ? 'md:grid-cols-2' : ''}`}>
       <Card kind="drop" lv={dropLv} prob={d?.prob} date={lab(iso)} sub="한낮 11~15시" why={why.drop?.[iso]} warn={T_WARN} strong={T_STRONG}
         note="예측이 아직 없습니다." />
+      {REGION === '육지' && (
       <Card kind="surge" lv={surgeLv} prob={s?.prob} date={lab(iso)} sub="하루 최고 가격" why={why.surge?.[iso]}
         warn={surgeData()?.meta.warnP ?? 0.04} strong={surgeData()?.meta.strongP ?? 0.19}
-        naName={REGION === '제주' ? '제공 안 함' : undefined}
-        note={REGION === '제주' ? '제주 급등 경보는 제공하지 않습니다. 2025년 이후 제주 급등은 연 6~7회뿐이고 대부분 당일 사정에 따른 단발성이라 전날 정보로 미리 알 수 없었습니다. 육지와 함께 오르는 날은 육지 급등 경보를 참고하세요.' : '예측이 아직 없습니다.'} />
+        note="예측이 아직 없습니다." />
+      )}
     </div>
   )
 }
