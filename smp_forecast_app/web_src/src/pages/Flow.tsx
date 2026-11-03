@@ -205,7 +205,7 @@ function DailyFlow({ dates, H, stat }: { dates: string[]; H: string; stat: Stat 
         right={<Legend items={[{ t: '80% 범위', c: 'band' }, { t: '당시 예측', c: 'pred' }, { t: '공표', c: 'act' }, { t: '범위 밖', c: 'out' }]} />}>
         <EChart option={opt} height={340} />
       </Card>
-      <Card flush title="날짜별" right={<CsvButton onClick={() => downloadCsv(`${REGION}_한달_${STAT_NAME[stat]}_${H}일전_${dates[0]}_${dates[dates.length - 1]}`,
+      <Card flush title="날짜별" right={<CsvButton onClick={() => downloadCsv(`${REGION}_한달_${STAT_NAME[stat]}_${H === 'm' ? '전달말판단' : H + '일전'}_${dates[0]}_${dates[dates.length - 1]}`,
         ['날짜', '하한', '예측', '상한', '공표'], dates.map((d, i) => [d, s.lo[i], s.p[i], s.hi[i], s.y[i]]))} />}>
         <div className="tbl-wrap">
           <table className="tbl">

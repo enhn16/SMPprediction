@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
 import { D, REGION } from '../data'
-import { avg, fmt, lab, md, sgn } from '../fmt'
+import { avg, downloadCsv, fmt, lab, md, sgn } from '../fmt'
 import { bandOption, EChart } from '../components/Chart'
-import { Card, Legend, PageHeader, Pill } from '../components/ui'
+import { Card, CsvButton, Legend, PageHeader, Pill } from '../components/ui'
 import { P, mix } from '../theme'
 
 // 하루 모양을 함께 보는 보조 선: 저녁(수요 피크, 따뜻한 색) · 한낮(태양광, 청록)
@@ -82,7 +82,11 @@ export function Month() {
         right={<Legend items={[{ t: '일평균 · 80% 범위', c: 'band' }, { t: '일평균 예측', c: 'pred' }, ...(M.p_eve ? [{ t: '저녁 18~22시', c: EVE }, { t: '한낮 11~15시', c: MID }] : []), { t: '공표 일평균', c: 'act' }]} />}>
         <EChart option={opt} height={360} />
       </Card>
-      <Card title="일별 표" sub={M.p_mid ? '일평균(80% 범위) · 한낮 · 저녁 · 한낮 최저 · 공표 일평균' : '일평균(80% 범위) · 공표 일평균'} flush>
+      <Card title="일별 표" sub={M.p_mid ? '일평균(80% 범위) · 한낮 · 저녁 · 한낮 최저 · 공표 일평균' : '일평균(80% 범위) · 공표 일평균'} flush
+        right={<CsvButton onClick={() => downloadCsv(`${REGION}_한달예측_기준${M.base}`,
+          ['기준일', '날짜', '요일유형', ...(next ? [] : ['며칠 뒤']), '일평균 예측', '하한', '상한', ...(M.p_mid ? ['한낮 11~15시', '저녁 18~22시', '한낮 최저'] : []), '공표 일평균', '오차 (공표−예측)'],
+          M.d.map((d: string, i: number) => [M.base, d, M.dt[i] ?? '', ...(next ? [] : [i + 7]), s.p[i], s.lo[i], s.hi[i],
+            ...(M.p_mid ? [M.p_mid[i], M.p_eve[i], M.p_midmin[i]] : []), s.y[i], s.y[i] != null && s.p[i] != null ? +(s.y[i] - s.p[i]).toFixed(2) : null]))} />}>
         <div className="tbl-wrap max-h-[480px]">
           <table className="tbl">
             <thead className="sticky top-0 z-[1]"><tr><th className="l">날짜</th>{!next && <th>며칠 뒤</th>}<th>일평균</th><th>80% 범위</th>{M.p_mid && <><th>한낮 11~15시</th><th>저녁 18~22시</th><th>한낮 최저</th></>}<th>공표 일평균</th><th>오차 (공표−예측)</th></tr></thead>

@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { D, REGION } from '../data'
-import { avg, fmt, inside, lab, pct } from '../fmt'
+import { avg, downloadCsv, fmt, inside, lab, pct } from '../fmt'
 import { bandOption, EChart } from '../components/Chart'
 import { Alerts } from '../components/Alerts'
-import { Card, Legend, PageHeader } from '../components/ui'
+import { Card, CsvButton, Legend, PageHeader } from '../components/ui'
 import { LV } from '../theme'
 
 /** 최근 7일(공표가 있는 날) 하루 전 예측 성적 한 줄 — 지금 예측을 얼마나 믿을지 가늠 */
@@ -82,7 +82,14 @@ export function Week() {
         </div>
         <div className="px-3 pb-4 pt-2 sm:px-5"><EChart option={opt} height={360} /></div>
       </section>
-      <Card title="시간별 표" sub="하한 · 예측 · 상한 · 공표 SMP" flush right={<button onClick={() => setShowTable(!showTable)} className="btn">{showTable ? '접기' : '펼치기'}</button>}>
+      <Card title="시간별 표" sub="하한 · 예측 · 상한 · 공표 SMP" flush right={<div className="flex gap-2">
+        <CsvButton onClick={() => {
+          const ds = view === 'all' ? days : [days[view]]
+          downloadCsv(`${REGION}_일주일예측_기준${W.base}${view === 'all' ? '' : '_' + ds[0].date}`, ['기준일', '날짜', '요일유형', '시간', '하한', '예측', '상한', '공표 SMP'],
+            ds.flatMap((d) => d.p.map((p, i) => [W.base, d.date, d.dt ?? '', i + 1, d.lo[i], p, d.hi[i], d.y[i]])))
+        }} />
+        <button onClick={() => setShowTable(!showTable)} className="btn">{showTable ? '접기' : '펼치기'}</button>
+      </div>}>
         {showTable ? (
           <div className="tbl-wrap max-h-[480px]">
             <table className="tbl">
