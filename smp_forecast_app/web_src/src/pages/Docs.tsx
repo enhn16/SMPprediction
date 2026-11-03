@@ -288,6 +288,30 @@ function SurgeDoc() {
   )
 }
 
+/** 내일(D+1) 범위 경보 보정 (2026-11-03, range_alert.py): 급락 경보 → 한낮 하한, 급등 경보 → 상한 후보 */
+function AlertRangeSec() {
+  const W = D.perf.week ?? ({} as any), ch: Row = W.rl ?? {}
+  const sel: Row[] = W.rlSelect ?? [], test: Row[] = W.rlTest ?? []
+  return (
+    <Sec title="내일 범위 경보 보정" sub="2026-11-03 · 2025로 선택 → 2026-01-01 ~ 10-18 한 번 채점">
+      <p>내일은 급락·급등 경보가 있으므로, 점예측은 그대로 두고 <b>내일 범위만</b> 경보에 맞춰 넓힙니다.</p>
+      <ul>
+        <li><b>급락</b>: {ch['급락'] ?? '-'} (내일 11~15시). 급락이 난 시간 대부분을 범위에 담지만, 헛경보 날에는 한낮 범위가 넓어집니다.</li>
+        <li><b>급등</b>: {ch['급등'] ?? '-'}. 2025 급등 경보일이 적어 상한을 올리는 후보가 나아지지 않았습니다.</li>
+        <li>후보는 채점 전에 고정했고, 바뀔 수 있는 시간의 구간점수가 가장 낮은 것(1% 이내면 단순한 쪽)을 골랐습니다.</li>
+      </ul>
+      <Table caption={<>2026 평가 (보정 전 → 후)</>} rows={test} csv="육지_내일범위보정_2026" cols={[{ k: '구분', t: '구분', l: true }, { k: '보정 후 시간수', t: '시간 수' },
+        { k: '보정 전 포함률', t: '전 포함률', f: (v) => pct(v) }, { k: '보정 후 포함률', t: '후 포함률', f: (v) => pct(v) },
+        { k: '보정 전 평균 폭', t: '전 폭', f: (v) => fmt(v) }, { k: '보정 후 평균 폭', t: '후 폭', f: (v) => fmt(v) },
+        { k: '보정 전 구간점수', t: '전 구간점수', f: (v) => fmt(v) }, { k: '보정 후 구간점수', t: '후 구간점수', f: (v) => fmt(v) }]} />
+      <Table caption={<>2025 후보 비교 (선택 구간)</>} rows={sel} sel={(r) => r['선택'] === '✓'} csv="육지_내일범위보정_2025후보" cols={[{ k: '구분', t: '경보', l: true }, { k: '후보', t: '후보', l: true, w: true },
+        { k: '포함률', t: '포함률', f: (v) => pct(v) }, { k: '평균 폭', t: '폭', f: (v) => fmt(v) }, { k: '구간점수', t: '구간점수', f: (v) => fmt(v) },
+        { k: '사건 포함률', t: '사건 시간 포함률', f: (v) => pct(v) }]} />
+      <p className="!text-[12.5px] !text-mute">사건 시간 = 급락은 30원 미만 시간, 급등은 급등일의 모든 시간. 위 '이전 모델과 비교' 표와 맨 위 지표는 보정 전 K3 범위 기준입니다.</p>
+    </Sec>
+  )
+}
+
 function WeekDoc() {
   const K: Row[] = D.perf.week?.k3Score ?? []
   const k = (per: string, seg: string, m = 'K3'): Row => K.find((r) => String(r['기간']).startsWith(per) && r['구분'] === seg && r['모델'] === m) ?? {}
@@ -315,7 +339,8 @@ function WeekDoc() {
           <li><b>평일</b>: Chronos-2 small을 <b>우리 SMP 자료로 1년에 한 번(12월 31일) 추가 학습</b>한 판. 최근 85일 시간별 SMP와 휴무일 달력을 넣어 앞으로 168시간을 예측합니다.</li>
           <li><b>휴무일</b>: 추가 학습 없는 Chronos-2 small에 <b>미래 정보</b>(주간 전력수요 전망, 오후 하늘·강수확률 예보, 연료비)를 함께 넣은 판.</li>
           <li><b>오차 보정</b> (LightGBM, 며칠 뒤마다 따로, 매월 자동 재학습): Chronos가 틀린 만큼(공표 − Chronos)을 수요전망·날씨예보·연료비·태양광 설비로 예측해 그 절반(λ = {D.perf.week?.k3?.['λ'] ?? 0.5})을 더합니다.</li>
-          <li><b>80% 범위</b>: Chronos-2 기본판의 10%·90% 분위수를 최종 예측 쪽으로 옮긴 뒤, 직전 365일 실제 이탈 폭으로 위아래를 같이 넓히거나 좁힙니다 (시간대 묶음 × 휴무일). 휴일·주말 하한 보정은 붙이지 않습니다.</li>
+          <li><b>80% 범위</b>: Chronos-2 기본판의 10%·90% 분위수를 최종 예측 쪽으로 옮긴 뒤, 직전 365일 실제 이탈 폭으로 위아래를 같이 넓히거나 좁힙니다 (시간대 묶음 × 휴무일).</li>
+          <li><b>내일 범위 경보 보정</b>: 내일 급락 경보가 주의 이상이면 내일 11~15시 하한을 0원까지 엽니다 (아래 표).</li>
         </ol>
       </Sec>
       <Sec title="선택 이유">
@@ -330,6 +355,7 @@ function WeekDoc() {
         <Table caption={<>2026 평가 ({TEAM_PERIOD})</>} rows={cmp('2026')} csv="육지_일주일_K3_2026" cols={CMPCOLS} />
         <Table caption={<>2025 하반기 (선택 구간)</>} rows={cmp('2025')} csv="육지_일주일_K3_2025하반기" cols={CMPCOLS} />
       </Sec>
+      <AlertRangeSec />
       <Sec title="사용 데이터"><DataTable rows={DATA_HOURLY} /><p className="!text-[13px] font-semibold">쓰지 않은 정보</p><NotUsed /></Sec>
       <Sec title="한계">
         <ul>

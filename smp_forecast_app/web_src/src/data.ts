@@ -29,7 +29,7 @@ export type SmpData = RegionData & {
   hasJeju?: boolean
   jdocs?: Record<string, any> // 제주일 때만
   dayinfo: Record<string, { dt: string; off: boolean }>
-  perf: { week: { models: Row[]; ens: Row[]; test: Row[]; choice: Row; k3?: Row; k3Score?: Row[] }; month: { models: Row[]; ens: Row[]; test: Row[]; choice: Row; mm?: Row; mmScore?: Row[] }; dropCal: Row[]; dropChoice: Row }
+  perf: { week: { models: Row[]; ens: Row[]; test: Row[]; choice: Row; k3?: Row; k3Score?: Row[]; rl?: Row; rlSelect?: Row[]; rlTest?: Row[] }; month: { models: Row[]; ens: Row[]; test: Row[]; choice: Row; mm?: Row; mmScore?: Row[] }; dropCal: Row[]; dropChoice: Row }
   docs: { final: Row; metrics: Row[]; nextday: Row[]; dropTest: Row[]; dropZoo: Row[]; team?: Row }
 }
 

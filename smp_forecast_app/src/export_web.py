@@ -21,7 +21,7 @@ import pandas as pd
 from common.calendar import build_calendar
 from common.config import PROCESSED_DIR, ROOT
 from common.loaders import load_smp_actual
-from smp_forecast_app.src import range_adjust
+from smp_forecast_app.src import range_adjust, range_alert
 from smp_forecast_app.src.features_daily import daily_stats
 from smp_forecast_app.src.jz_month import daily_stats as jz_daily_stats
 
@@ -93,8 +93,8 @@ def hourly_frame(region="육지"):
         o = oh[["base_date", "H", "date", "hour", "pred", "lo", "hi"]]
         w = pd.concat([w[~key(w).isin(key(o))], o])
     w = w.reset_index(drop=True)
-    # 휴일·주말 한낮 하한 보정 (RA_choice.json)은 제주만. 육지 K3 범위는 보정 없이 골랐고 성적도 보정 없는 값 (WEEK_K3_HANDOFF.md 4절)
-    return w if region == "육지" else range_adjust.apply(w, region)
+    # 육지 K3: 내일(D+1) 범위만 급락·급등 경보로 보정 (RL_choice.json, 2026-11-03). 제주: 휴일·주말 한낮 하한 보정 (RA_choice.json)
+    return range_alert.apply(w) if region == "육지" else range_adjust.apply(w, region)
 
 
 def daily_frame(region="육지"):
@@ -246,7 +246,8 @@ def main():
                          for r in _table("WZ2_ensembles_2025H2.csv")], "test": _table("WZ3_test2026.csv"),
                  "choice": _json("WZ_choice.json"),
                  # 일주일 K3 (2026-11-03, R3 WEEK_K3_HANDOFF.md): 설정 + 지금 모델과 나란히 본 성적 (2025 하반기 검증 · 2026 시험)
-                 "k3": _json("WZ3_K3_choice.json"), "k3Score": _table("WZ3_K3_score.csv")},
+                 "k3": _json("WZ3_K3_choice.json"), "k3Score": _table("WZ3_K3_score.csv"),
+                 "rl": _json("RL_choice.json"), "rlSelect": _table("RL1_select_2025.csv"), "rlTest": _table("RL2_test2026.csv")},   # 내일 범위 경보 보정
         # 한 달 = R3 mx v2 (2026-10-27 교체, docs/MONTH.md)
         "month": {"mm": _json("MM_choice.json"), "mmScore": _table("MM_score.csv"),   # 한 달 MM (2026-11-03, R6)
                   "models": _table("MX1_models_v2.csv"), "ens": _table("MX2_ensembles_2025_v2.csv"), "test": _table("MX4_test2026_v2.csv"),
