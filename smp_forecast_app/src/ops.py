@@ -113,7 +113,7 @@ def train_resid():
 
 
 def train():
-    """매주 일요일: 일주일 잔차 보정 + 한 달 예측(mx v2: 표 모델·LSTM·GRU, 약 5분) + 제주."""
+    """매주 일요일: 제주 학습(jz_ops.train). 육지 일주일 K3·한 달 MM과 제주 새 경로(k3·all)는 각자 자동 재학습한다 (2026-11-03)."""
     # 2026-11-03: 육지 일주일 K3(월마다 자동)·한 달 MM(월말마다)은 각자 재학습 → 이전 모델(train_resid, mx_ops.train)은 끔
     try:
         from smp_forecast_app.src import jz_ops
