@@ -118,10 +118,13 @@ def _quantiles(tag, bases):
     return pd.concat([hist.drop(columns="base"), new], ignore_index=True).drop_duplicates(["date", "hour", "H"], keep="last")
 
 
-def weekly(bases, stage="15h", hist=None):
-    """stage = "15h"(기본, 1차 = 지금 동작) / "21h"(2차, _weekly21). hist는 21h에서만 씀."""
+def weekly(bases, stage="15h", hist=None, land="old"):
+    """stage = "15h"(기본, 1차 = 지금 동작) / "21h"(2차, _weekly21). hist는 21h에서만 씀.
+    land (15h): "old"(기본 = 지금 동작, 이전 육지 모델 hourly_log 입력) / "k3"(2026-11-03, 육지 K3 + 제주 보정, _weekly_k3)."""
     if stage == "21h":
         return _weekly21(bases, hist)
+    if land == "k3":
+        return _weekly_k3(bases)
     import joblib
     bases = [pd.Timestamp(b) for b in bases]
     base, fset, obj, lam, ch = _pick()
@@ -179,6 +182,86 @@ def weekly(bases, stage="15h", hist=None):
     if ol.exists():
         w = pd.concat([pd.read_csv(ol, parse_dates=["base_date", "date"]), w]).drop_duplicates(["base_date", "H", "date", "hour"], keep="last")
     w.round(3).to_csv(ol, index=False, encoding="utf-8-sig")
+    return r.round(2).reset_index(drop=True)
+
+
+# ---------------------------------------------------------------- 일주일 1차 v3: 육지 K3 + 제주 보정 (2026-11-03, JWZ7_choice.json, JEJU.md 11절)
+def _k3_resid_models(month, rtabs, cols, obj):
+    """대상 달 month의 H별 잔차 모델 (백테스트와 같은 규칙: 2023-01 ~ 그달 1일 − (H−1)일 실적). 없으면 학습해 저장."""
+    import joblib
+    import lightgbm as lgb
+    from smp_forecast_app.src.jz_common import TRAIN_START
+    from smp_forecast_app.src.jz_resid import LGB
+    f = MODELS / f"jz4_resid_{month:%Y-%m}.pkl"
+    if f.exists():
+        return joblib.load(f)
+    t0 = time.time()
+    ms = {}
+    for H in HS:
+        d = rtabs[H]
+        tr = d[(d["date"] >= TRAIN_START) & (d["date"] < month - pd.Timedelta(days=H - 1)) & d["r"].notna()]
+        ms[H] = lgb.LGBMRegressor(**dict(LGB, objective=obj)).fit(tr[cols], tr["r"])
+    MODELS.mkdir(parents=True, exist_ok=True)
+    joblib.dump(ms, f)
+    log(f"일주일 K3 제주 보정 {month:%Y-%m} 학습 ({time.time() - t0:.0f}s)")
+    return ms
+
+
+def _weekly_k3(bases):
+    """기준일 I(15시) → [base_date, H, date, hour, y, pred, lo, hi, offday] (JWZ7_predictions_hourly.csv 형식).
+    점예측 = 육지 K3(wz3/ops/k3_parts.csv.gz의 그 기준일) + λ × 제주 잔차 보정(LightGBM l1, 대상 달마다 자동 학습).
+    범위 = A1 대칭(직전 window일 제주 오차, 시간대묶음 × 휴무일 × 지평). 이전 육지 일주일 모델이 필요 없다.
+    호출 순서: 육지 일주일 K3(ops.weekly_k3) 다음 (k3_parts에 그 기준일 행이 있어야 함). 기록 jeju/ops/jwz7_log.csv."""
+    from smp_forecast_app.src import jz3, jz4
+    t0 = time.time()
+    bases = [pd.Timestamp(b) for b in bases]
+    ch = _choice("JWZ7_choice.json")
+    lam, win = float(ch["λ (2025 전체, 최종)"]), int(ch["window"])
+    obj = "l1" if "l1" in ch["점예측"] else "l2"
+    src = jz4.sources()
+    b = jz3.base_all()
+    feats_h = _tables(_land_features())
+    rt = {H: jz4.htable(H, b, src, feats_h[H]) for H in HS}
+    cols = jz4.cols_of(rt[1])
+    act = load_smp_actual("제주")[["date", "hour", "smp"]].rename(columns={"smp": "y"})
+    hist = pd.read_csv(JDIR / "JWZ7_predictions_hourly.csv", parse_dates=["base_date", "date"])[["date", "hour", "H", "pred"]]
+    ol = JOPS / "jwz7_log.csv"
+    if ol.exists():
+        hist = pd.concat([hist, pd.read_csv(ol, parse_dates=["date"])[["date", "hour", "H", "pred"]]]).drop_duplicates(["date", "hour", "H"], keep="last")
+    res = []
+    for H in HS:
+        targets = [x + pd.Timedelta(days=H) for x in bases]
+        d = rt[H][rt[H]["date"].isin(targets)]
+        if d.empty:
+            log(f"H={H}: K3 기준 예측(k3_parts)이 없어 건너뜀 — 육지 weekly_k3 먼저")
+            continue
+        rhat = np.zeros(len(d))
+        for mth, idx in d.groupby(d["date"].dt.to_period("M")).groups.items():
+            ms = _k3_resid_models(mth.start_time, rt, cols, obj)
+            rhat[d.index.get_indexer(idx)] = ms[H].predict(d.loc[idx, cols])
+        nh = d[["date", "hour", "b_pred", "b_lo", "b_hi", "b_c"]].assign(H=H, pred=d["b_pred"].values + lam * rhat)
+        hh = rt[H][~rt[H]["date"].isin(nh["date"])][["date", "hour", "b_pred", "b_lo", "b_hi", "b_c"]].assign(H=H)
+        hh = hh.merge(hist[hist["H"] == H][["date", "hour", "pred"]], on=["date", "hour"], how="inner")
+        dd = pd.concat([hh, nh], ignore_index=True).merge(act, on=["date", "hour"], how="left")
+        dd.loc[dd["date"].isin(nh["date"]), "y"] = np.nan                # 예측 대상 행은 오차 이력에서 제외
+        cal = build_calendar(dd["date"].min(), dd["date"].max()).set_index("date")["is_offday"]
+        dd["offday"] = dd["date"].map(cal).astype(bool)
+        dd = dd.sort_values(["date", "hour"]).reset_index(drop=True)
+        ev = dd["date"].isin(nh["date"]).values
+        lo, hi = jz3.sym_range(dd, dd["pred"].values, win, ev)
+        res.append(dd[ev][["date", "hour", "pred", "offday"]].assign(H=H, lo=lo[ev], hi=hi[ev]))
+    if not res:
+        return pd.DataFrame(columns=["base_date", "H", "date", "hour", "y", "pred", "lo", "hi", "offday"])
+    r = pd.concat(res)
+    r["base_date"] = r["date"] - pd.to_timedelta(r["H"], unit="D")
+    r = r.merge(act, on=["date", "hour"], how="left")
+    r = r[["base_date", "H", "date", "hour", "y", "pred", "lo", "hi", "offday"]].sort_values(["base_date", "H", "hour"])
+    JOPS.mkdir(parents=True, exist_ok=True)
+    w = r.assign(run_at=datetime.now().strftime("%Y-%m-%d %H:%M"))
+    if ol.exists():
+        w = pd.concat([pd.read_csv(ol, parse_dates=["base_date", "date"]), w]).drop_duplicates(["base_date", "H", "date", "hour"], keep="last")
+    w.round(3).to_csv(ol, index=False, encoding="utf-8-sig")
+    log(f"일주일(K3 + 제주 보정) 기준일 {len(bases)}개 {time.time() - t0:.0f}s")
     return r.round(2).reset_index(drop=True)
 
 
@@ -277,11 +360,12 @@ def train_drop():
     log(f"급락 모델 학습 자료 저장 ({tr['date'].min().date()} ~ {tr['date'].max().date()}, {len(tr)}일)")
 
 
-def drops(bases, model="team"):
+def drops(bases, model="team", version="v1_offday"):
     """기준일 I → 내일 I+1 [base_date, date, grade, pred_min, prob]. 피처: 제주 Chronos-2 small(육지 공변량) H=1은 운영 기준일만 새로 계산.
-    model: "team"(기본, 2026-10-28~ 팀 규칙 재선택 = predict, JD_choice.json) / "v1"(이전 S5 KNN 2024~2025, JD_choice_v1.json)."""
+    model: "team"(기본, 2026-10-28~ 팀 규칙 재선택 = predict) / "v1"(이전 S5 KNN 2024~2025, JD_choice_v1.json).
+    version (model="team"일 때, predict와 같음): "v1_offday"(기본 = 지금 동작) / "all"(2026-11-03 전체 날 문턱 + 육지 입력 K3)."""
     if model == "team":
-        r = predict(bases)
+        r = predict(bases, version=version)
         return pd.DataFrame({"base_date": pd.to_datetime(r["base_date"]), "date": pd.to_datetime(r["date"]), "grade": r["grade"],
                              "pred_min": np.nan, "prob": r["prob"]})
     import joblib
@@ -321,20 +405,42 @@ def train_drop_team():
     log(f"급락(팀 규칙) 학습 자료 저장 ({tr['date'].min().date()} ~ {tr['date'].max().date()}, {len(tr)}일)")
 
 
-def predict(bases):
+def train_drop_all():
+    """(2026-11-03) 전체 날 문턱·육지 입력 K3 모델(drop_choice_제주.json)의 학습 자료(2023-01 ~ 2025-12, 고정) → models/jz_drop_all.pkl."""
+    import joblib
+    from drop_classifier.src import jeju_team as jt
+    from drop_classifier.src import jeju_team2 as jt2
+    d = jt2.table()
+    tr = d[d["date"].between(*jt.TR_FIN) & d["label"].notna()]
+    MODELS.mkdir(parents=True, exist_ok=True)
+    joblib.dump({"train": tr}, MODELS / "jz_drop_all.pkl")
+    log(f"급락(전체 날·K3) 학습 자료 저장 ({tr['date'].min().date()} ~ {tr['date'].max().date()}, {len(tr)}일)")
+
+
+def predict(bases, version="v1_offday"):
     """기준일 I(15시) → 내일 I+1 [base_date, date, grade, prob, score] (ROLES.md 4.1, drop_제주_15h.csv와 같은 열, label 제외).
-    모델·문턱·확률식 = drop_classifier/outputs/tables/drop_choice_제주.json. drops와 같이 제주 Chronos H=1을 운영 기준일만 새로 계산."""
+    drops와 같이 제주 Chronos H=1을 운영 기준일만 새로 계산.
+    version: "v1_offday"(기본 = 지금 동작) — S4 KNN, 휴일·주말 문턱, 이전 육지 입력 (drop_choice_제주_v1_offday.json, jz_drop_team.pkl)
+             "all"(2026-11-03) — S5 KNN, 전체 날 문턱, 육지 입력 K3 (drop_choice_제주.json, jz_drop_all.pkl).
+             K3 입력은 wz3/ops/k3_parts.csv.gz의 그 기준일 H=1 → 육지 일주일 K3(ops.weekly_k3) 다음에 호출."""
     import joblib
     from drop_classifier.src import jeju_drop as jd
     from drop_classifier.src import jeju_team as jt
     bases = [pd.Timestamp(b) for b in bases]
-    ch = json.loads((jd.TAB / "drop_choice_제주.json").read_text(encoding="utf-8"))
-    if not (MODELS / "jz_drop_team.pkl").exists():
-        train_drop_team()
-    tr = joblib.load(MODELS / "jz_drop_team.pkl")["train"]
+    if version == "all":
+        from drop_classifier.src import jeju_team2 as jt2
+        ch = json.loads((jd.TAB / "drop_choice_제주.json").read_text(encoding="utf-8"))
+        pkl, train_fn, land_mid = MODELS / "jz_drop_all.pkl", train_drop_all, jt2.k3_mid()
+    else:
+        f = jd.TAB / "drop_choice_제주_v1_offday.json"
+        ch = json.loads((f if f.exists() else jd.TAB / "drop_choice_제주.json").read_text(encoding="utf-8"))
+        pkl, train_fn, land_mid = MODELS / "jz_drop_team.pkl", train_drop_team, None
+    if not pkl.exists():
+        train_fn()
+    tr = joblib.load(pkl)["train"]
     from smp_forecast_app.src.features import build as land_build
     from smp_forecast_app.src.jz_features import build
-    d = jd.day_table(f=build(1, land_build(1)), jc2sx=_quantiles("jc2sx", bases), start=jt.START)
+    d = jd.day_table(f=build(1, land_build(1)), jc2sx=_quantiles("jc2sx", bases), start=jt.START, land_mid=land_mid)
     d["has_om"] = d["jo_rad_mid"].notna().astype(float)
     te = d[d["date"].isin([b + pd.Timedelta(days=1) for b in bases])]
     cols = ["base_date", "date", "grade", "prob", "score"]
@@ -361,6 +467,21 @@ def monthly(bases):
         log("육지 한 달 운영 기록에 해당 기준일 없음 → 제주 한 달 건너뜀")
         return pd.DataFrame()
     return jm.apply(land, {s: ch[s]["점예측"] for s in jm.STATS}, {s: ch[s]["범위"] for s in jm.STATS}).round(2)
+
+
+def monthly_final(land):
+    """(2026-11-03) 육지 한 달 최종(R6, 월말 판단 → 다음 달 모든 날 일평균)을 제주로: 점예측 = 육지 그대로 (JMZ3 선택),
+    80% 범위 = pred × (1 + JMZ3_choice의 주차별 상대 오차 분위수). land: [base_date, date, pred] (R6 운영 함수 출력).
+    → [base_date, H, date, pred, lo, hi]. 기존 monthly(육지 v2 기준)는 그대로 둔다."""
+    q = _choice("JMZ3_choice.json")
+    q = {int(k): v for k, v in next(v for k, v in q.items() if k.startswith("범위 분위수")).items()}
+    d = land[["base_date", "date", "pred"]].copy()
+    d["base_date"], d["date"] = pd.to_datetime(d["base_date"]), pd.to_datetime(d["date"])
+    d["H"] = (d["date"] - d["base_date"]).dt.days
+    w = np.minimum((d["H"].to_numpy() - 1) // 7, 3)
+    d["lo"] = d["pred"] * (1 + np.array([q[x][0] for x in w]))
+    d["hi"] = d["pred"] * (1 + np.array([q[x][1] for x in w]))
+    return d[["base_date", "H", "date", "pred", "lo", "hi"]].round(2)
 
 
 if __name__ == "__main__":

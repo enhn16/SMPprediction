@@ -58,10 +58,12 @@ SETS = {"S1 육지형": CAL + LAG + DEMAND + FCST, "S2 +풍속·일사": CAL + L
         "S3 +육지": CAL + LAG + DEMAND + FCST + OM + LAND, "S4 +제주예측": CAL + LAG + DEMAND + FCST + OM + LAND + JPRED}
 
 
-def day_table(f: pd.DataFrame | None = None, jc2sx: pd.DataFrame | None = None, start: str = TRAIN_START) -> pd.DataFrame:
+def day_table(f: pd.DataFrame | None = None, jc2sx: pd.DataFrame | None = None, start: str = TRAIN_START,
+              land_mid: pd.DataFrame | None = None) -> pd.DataFrame:
     """대상일 D 한 행: 피처(판단일 D-1 15시 기준) + 한낮 최저(min11_15)·급락 레이블.
     f: 제주 피처 표 H=1 (없으면 저장 파일), jc2sx: 제주 Chronos 예측 [date, hour, H, pred, qlo] (없으면 백테스트 파일) — 운영용.
-    start: 첫 대상일 (기본 2024-01-01 = 기존 동작, 팀 규칙 재선택은 2023-01-01)."""
+    start: 첫 대상일 (기본 2024-01-01 = 기존 동작, 팀 규칙 재선택은 2023-01-01).
+    land_mid: 육지 일주일 H=1 한낮 최저 [date → L_base, L_c2s] (없으면 이전 육지 모델 = 기존 동작, K3는 jeju_team2.k3_mid)."""
     f = load_feats(1) if f is None else f
     d = f[f["hour"] == 12].drop(columns=["hour"]).copy().reset_index(drop=True)
     d = d.rename(columns={"L_s_same_h": "L_s_same_h12"})
@@ -77,8 +79,11 @@ def day_table(f: pd.DataFrame | None = None, jc2sx: pd.DataFrame | None = None, 
     dm = d.set_index("date")["d_d1_mid"]
     d["d_rel28"] = d["d_d1_mid"] / d["date"].map(dm.rolling(28, min_periods=20).median())
     # 육지 일주일 예측(H=1)의 내일 한낮 최저
-    lp = land_pred()
-    lp = lp[(lp["H"] == 1) & lp["hour"].isin(MID)].groupby("date")[["L_base", "L_c2s"]].min()
+    if land_mid is None:
+        lp = land_pred()
+        lp = lp[(lp["H"] == 1) & lp["hour"].isin(MID)].groupby("date")[["L_base", "L_c2s"]].min()
+    else:
+        lp = land_mid
     d["L_pred_midmin"], d["L_c2s_midmin"] = d["date"].map(lp["L_base"]), d["date"].map(lp["L_c2s"])
     # 제주 Chronos-2 small + 육지 공변량 (H=1, 2023~2024 과거 예측 + 2025~)
     try:
