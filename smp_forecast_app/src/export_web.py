@@ -8,7 +8,7 @@
   설명
 계통: 육지 = forecast_data.js(window.SMP_DATA), 제주 = forecast_data_jeju.js(window.SMP_JEJU, 같은 구조 + 제주 참고 문서 jdocs).
       웹은 제주를 고를 때만 제주 파일을 읽음 (왼쪽 메뉴 전환)
-입력: WZ_predictions_hourly.csv(일주일, wz_ens) · mx/MX_predictions_daily_v2.csv(한 달, R3 mx v2)
+입력: wz3/WZ3_K3_backtest_hourly.csv + ops/hourly_log_k3.csv(일주일 K3, 2026-11-03) · mx/MX_predictions_daily_v2.csv(한 달, R3 mx v2)
       ops 운영 기록(있으면 같은 대상 덮어씀) · 급락 = drop_classifier/outputs/tables/drop_육지_15h.csv(R1) / ops drop_log.csv
       제주: jeju/JWZ_predictions_hourly.csv · JMZ_predictions_daily.csv · drop_badge_제주.csv + jeju/ops/{jwz,jdaily,jdrop}_log.csv
 실행: python -m smp_forecast_app.src.export_web
@@ -73,8 +73,8 @@ def _json(name):
 
 # 계통별 입력 (제주는 제주 채팅 결과 파일 + 제주 운영 기록, docs/JEJU.md 1절)
 SRC = {
-    "육지": {"hourly": DATA / "WZ_predictions_hourly.csv", "daily": DATA / "mx" / "MX_predictions_daily_v2.csv", "drop": ROOT / "drop_classifier" / "outputs" / "tables" / "drop_육지_15h.csv",   # R1 산출 (2026-10-26 교체)
-             "ops": OPS, "logs": ("hourly_log.csv", "daily_log.csv", "drop_log.csv")},
+    "육지": {"hourly": DATA / "wz3" / "WZ3_K3_backtest_hourly.csv", "daily": DATA / "mx" / "MX_predictions_daily_v2.csv", "drop": ROOT / "drop_classifier" / "outputs" / "tables" / "drop_육지_15h.csv",   # R1 산출 (2026-10-26 교체)
+             "ops": OPS, "logs": ("hourly_log_k3.csv", "daily_log.csv", "drop_log.csv")},
     "제주": {"hourly": JDIR / "JWZ_predictions_hourly.csv", "daily": JDIR / "JMZ_predictions_daily.csv", "drop": JDIR / "drop_badge_제주.csv",
              "ops": JDIR / "ops", "logs": ("jwz_log.csv", "jdaily_log.csv", "jdrop_log.csv")},
 }
@@ -92,7 +92,9 @@ def hourly_frame(region="육지"):
         key = lambda x: x["base_date"].astype(str) + "_" + x["H"].astype(str)
         o = oh[["base_date", "H", "date", "hour", "pred", "lo", "hi"]]
         w = pd.concat([w[~key(w).isin(key(o))], o])
-    return range_adjust.apply(w.reset_index(drop=True), region)   # 휴일·주말 한낮 하한 보정 (2026-10-27, RA_choice.json)
+    w = w.reset_index(drop=True)
+    # 휴일·주말 한낮 하한 보정 (RA_choice.json)은 제주만. 육지 K3 범위는 보정 없이 골랐고 성적도 보정 없는 값 (WEEK_K3_HANDOFF.md 4절)
+    return w if region == "육지" else range_adjust.apply(w, region)
 
 
 def daily_frame(region="육지"):

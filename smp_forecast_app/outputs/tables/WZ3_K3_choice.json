@@ -1,0 +1,58 @@
+{
+ "모델": "K3 — 평일 Chronos-2 small 전체 미세조정(1년 1회) + 잔차, 휴무일 Chronos-2 small 공변량 확장 + 잔차",
+ "spec": [
+  "mix|fts|ext",
+  "one",
+  false
+ ],
+ "λ": 0.5,
+ "λ 맞춤": "2024~2025 (2024만으로 맞춰도 0.5)",
+ "잔차 보정": {
+  "모델": "LightGBM L1 (wz_resid.LGB)",
+  "피처": [
+   "hour",
+   "dow",
+   "offday",
+   "daytype",
+   "prev_offday",
+   "next_offday",
+   "type_change",
+   "is_myeongjeol",
+   "fc_lng",
+   "fc_coal",
+   "cap_solar",
+   "kpx_peak",
+   "kpx_peak_rel",
+   "kpx_peak_vs_d1",
+   "rf_sky_pm",
+   "rf_pop_pm",
+   "rf_ta_pm",
+   "rf_sky_am",
+   "om_rad_mid",
+   "om_cloud_mid",
+   "pred",
+   "c_spread",
+   "c_vs_d1",
+   "c_vs_same",
+   "c_vs_ma28"
+  ],
+  "학습": "대상일의 달마다, 2023-01-01 ~ 그달 1일 − (H−1)일 실적",
+  "평일 행": "미세조정판 Chronos 기준 잔차",
+  "휴무일 행": "공변량 확장판 Chronos 기준 잔차"
+ },
+ "Chronos": {
+  "평일": "autogluon/chronos-2-small 전체 미세조정 lr 1e-6·500단계·배치 32·과거 2,048시간, 공변량 휴무일·요일유형·명절",
+  "휴무일": "autogluon/chronos-2-small 제로샷, 공변량 달력 + kpx_peak·rf_sky_pm·rf_pop_pm·fc_lng·fc_coal",
+  "범위용": "amazon/chronos-2 제로샷 분위수 0.1·0.9 (달력 공변량)",
+  "미세조정판 고르기": "마감 {Y}-12-31 판은 기준일 {Y}-12-31부터 (기준일 기준, 누수 없음)"
+ },
+ "범위": {
+  "방법": "A1 대칭 보정",
+  "분위수": "Chronos-2 대형판 0.1·0.9 + (점예측 − Chronos)",
+  "보정": "직전 365일 오차의 80% 분위수",
+  "칸": "시간대묶음 × 휴무일",
+  "휴일·주말 한낮 하한 보정(range_adjust)": "적용하지 않음"
+ },
+ "선택 근거": "WEEK_V3.md ⑥(2024·2025), 2026은 한 번 채점",
+ "백테스트": "data\\processed\\smp_forecast_app\\wz3\\WZ3_K3_backtest_hourly.csv"
+}

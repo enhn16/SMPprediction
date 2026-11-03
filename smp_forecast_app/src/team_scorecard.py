@@ -28,8 +28,8 @@ DATA = PROCESSED_DIR / "smp_forecast_app"
 TAB = ROOT / "smp_forecast_app" / "outputs" / "tables"
 T0, T1 = "2026-01-01", "2026-10-18"
 STATS = {"mean": "일평균", "mid": "한낮 11~15시", "eve": "저녁 18~22시", "midmin": "한낮 최저"}
-SRC = {"육지": {"week": DATA / "WZ_predictions_hourly.csv", "month": DATA / "mx" / "MX_predictions_daily_v2.csv", "drop": ROOT / "drop_classifier" / "outputs" / "tables" / "drop_육지_15h.csv",
-               "model": {"drop": "LSTM + LightGBM(확장 변수) 평균 (예상 한낮 최저)", "week": "Chronos-2 small + 0.5 × 잔차 보정",
+SRC = {"육지": {"week": DATA / "wz3" / "WZ3_K3_backtest_hourly.csv", "month": DATA / "mx" / "MX_predictions_daily_v2.csv", "drop": ROOT / "drop_classifier" / "outputs" / "tables" / "drop_육지_15h.csv",
+               "model": {"drop": "LSTM + LightGBM(확장 변수) 평균 (예상 한낮 최저)", "week": "K3: Chronos-2 (평일 미세조정판·휴무일 공변량판) + 0.5 × 잔차 보정",
                          "month": "mx v2: Chronos 3종·LSTM·GRU 조합 (저녁은 9개 모델 가중)"}},
        "제주": {"week": DATA / "jeju" / "JWZ_predictions_hourly.csv", "month": DATA / "jeju" / "JMZ_predictions_daily.csv",
                "drop": DATA / "jeju" / "drop_badge_제주.csv",
@@ -47,7 +47,9 @@ def price_rows(region):
     lag = lambda k: act.assign(date=act["date"] + pd.Timedelta(days=k)).rename(columns={"smp": f"lag{k}"})
     w = pd.read_csv(SRC[region]["week"], parse_dates=["base_date", "date"])
     w = w[w["y"].notna() & in_test(w["date"])].merge(lag(7), on=["date", "hour"], how="left").merge(lag(1), on=["date", "hour"], how="left")
-    w = range_adjust.apply(w.reset_index(drop=True), region)   # 운영·웹과 같은 범위 보정 (휴일·주말 한낮 하한, RA_choice.json)
+    w = w.reset_index(drop=True)
+    if region != "육지":   # 운영·웹과 같은 범위 보정 (휴일·주말 한낮 하한) — 육지 K3는 보정 없음
+        w = range_adjust.apply(w, region)
     rows = []
     for prod, g, naive in (("일주일", w, "lag7"), ("일주일 D+1", w[w["H"] == 1], "lag1")):
         for seg, m in hourly_segments(g).items():

@@ -230,6 +230,23 @@ def weekly(bases, run_at):
             ["base_date", "H", "date", "hour"])
 
 
+def weekly_k3(bases, run_at):
+    """육지 일주일 = K3 (R3, 2026-11-03 확정, docs/WEEK_K3_HANDOFF.md). 웹·팀 비교표의 원본 → hourly_log_k3.csv.
+    기존 weekly(hourly_log.csv)는 제주 일주일 입력용으로 계속 돈다 (R2 확인 전까지). 범위 하한 보정(range_adjust)은 붙이지 않는다.
+    K3 기록이 밀렸으면(실패한 날 등) 그 기준일부터 함께 산출. 기준일 1개 약 1분."""
+    from smp_forecast_app.src import wz3_ops
+    old = _read("hourly_log_k3.csv", usecols=["base_date"], parse_dates=["base_date"])
+    start = old["base_date"].max() + pd.Timedelta(days=1) if len(old) else min(bases)
+    todo = sorted(set(pd.date_range(max(start, max(bases) - pd.Timedelta(days=MAX_CATCHUP - 1)), max(bases))) | set(bases))
+    r = wz3_ops.weekly(todo, stage="15h")
+    if len(r):
+        r = r.assign(run_at=run_at)
+        for c in ("base_date", "date"):
+            r[c] = pd.to_datetime(r[c]).dt.strftime("%Y-%m-%d")
+        _append("hourly_log_k3.csv", r[["run_at", "base_date", "H", "date", "hour", "pred", "lo", "hi",
+                                        "ckpt", "c", "rhat", "c2_qlo", "c2_qhi"]].round(3), ["base_date", "H", "date", "hour"])
+
+
 def monthly(bases, run_at):
     """한 달 예측 = R3 mx v2 (2026-10-27 교체, docs/MONTH.md 0·4절). 지난 운영 기록(daily_log)을 범위 이력으로 넘김."""
     from smp_forecast_app.src import mx_ops
@@ -376,7 +393,7 @@ def daily():
         log("새 기준일 없음 (이미 산출됨)")
     else:
         log(f"기준일 {bases[0].date()} ~ {bases[-1].date()} ({len(bases)}일) 산출" + (" — 지연 산출 포함" if len(bases) > 1 else ""))
-        for name, fn in (("일주일", weekly), ("한 달", monthly), ("급락 경고", drops), ("급등 경보", surges), ("경보 근거", reasons)):
+        for name, fn in (("일주일 K3", weekly_k3), ("일주일(제주 입력용)", weekly), ("한 달", monthly), ("급락 경고", drops), ("급등 경보", surges), ("경보 근거", reasons)):
             try:
                 fn(bases, run_at)
                 log(f"{name} 완료")
