@@ -240,6 +240,28 @@ def load_fuel_cost() -> pd.DataFrame:
     return out
 
 
+GAS_BACKFILL_UNTIL = "2026-11"             # 이 달까지는 2026-11-03 일괄 수집 → first_seen이 실제 게시 시각이 아님
+GAS_LATE = {"2021-12", "2023-12"}         # 그달 시작 뒤 게시된 것으로 보이는 달 (연도 파일 수정 시각 기준)
+
+
+def load_gas_tariff() -> pd.DataFrame:
+    """data/raw/api/kogas_gas_tariff → [month, won_gj, won_kwh, usable_from].
+
+    가스공사 발전용 천연가스 요금(일반발전 합계, 원/GJ). won_kwh = 원/GJ × 7.2 MJ/kWh ÷ 1000 (EPSIS LNG 연료비단가와 같은 단위 근사).
+    usable_from(이 날부터 판단에 써도 됨): 일괄 수집분은 전달 28일(늦게 게시된 달은 그달 1일),
+    이후 매일 수집분은 처음 보인 날의 다음 날.
+    """
+    t = pd.read_csv(API_RAW_DIR / "kogas_gas_tariff" / "first_seen.csv", dtype={"month": str})
+    month = pd.to_datetime(t["month"], format="%Y-%m")
+    rule = (month - pd.DateOffset(months=1)) + pd.DateOffset(days=27)
+    rule = rule.where(~t["month"].isin(GAS_LATE), month)
+    seen = pd.to_datetime(t["first_seen"]).dt.normalize() + pd.Timedelta(days=1)
+    out = pd.DataFrame({"month": month, "won_gj": t["won_gj"].astype(float)})
+    out["won_kwh"] = out["won_gj"] * 7.2 / 1000
+    out["usable_from"] = rule.where(t["month"] <= GAS_BACKFILL_UNTIL, seen)
+    return out.sort_values("month").reset_index(drop=True)
+
+
 # 원전 호기별 설비용량(MW). 합계 26,050MW = 시장참여 설비용량 파일의 원자력 합계(2024-01 ~ 2026-02)와 일치
 NUCLEAR_MW = {
     "고리2호기": 650, "고리3호기": 950, "고리4호기": 950, "신고리1호기": 1000, "신고리2호기": 1000,
