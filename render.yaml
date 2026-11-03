@@ -1,0 +1,20 @@
+# Render 정적 사이트 설정 (2026-11-04, 무료 Static Site)
+# 계산·수집은 운영 PC(ops.py)가 하고 웹 파일만 GitHub에 푸시 → Render가 푸시마다 자동 배포.
+# 웹은 이미 빌드된 smp_forecast_app/web 폴더(index.html + data/*.js)라 빌드 단계가 없다.
+services:
+  - type: web
+    name: smp-forecast
+    runtime: static
+    buildCommand: echo "빌드 없음 - 이미 빌드된 웹 폴더를 그대로 배포"
+    staticPublishPath: smp_forecast_app/web
+    buildFilter:
+      paths:
+        - smp_forecast_app/web/**
+    headers:
+      # 예측 데이터는 하루 3번 바뀌므로 브라우저가 예전 파일을 쓰지 않게
+      - path: /data/*
+        name: Cache-Control
+        value: no-cache
+      - path: /index.html
+        name: Cache-Control
+        value: no-cache
