@@ -381,6 +381,7 @@ def daily():
          (today + pd.Timedelta(days=1)).strftime("%Y-%m-%d")])   # D+1 일사·운량 (D-2 실행분, H=1 피처)
     run(["common.collect.kpx_weekly_outlook"])
     run(["surge_classifier.src.collect_extra", "openmeteo"])   # 급등 v3 입력: Open-Meteo 2일 전 실행 best_match 기온·운량·강수
+    run(["common.collect.kogas_gas_tariff"])   # 한 달 예측 입력: 가스공사 발전용 천연가스 요금 (2026-11-03 R6, 바뀐 때만 저장, 다음 달분은 보통 전달 26~27일 게시)
     collect_accum()
     collect_jeju(today)
     if today.day <= 10:
