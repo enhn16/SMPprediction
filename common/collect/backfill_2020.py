@@ -115,9 +115,14 @@ def weekly(start="2019-12-01", end="2022-12-24", pages=range(18, 44)):
     posts = {}
     for pg in pages:
         t = s.get(f"{BOARD}&nPage={pg}", timeout=30).content.decode("utf-8", "replace")
-        for n, inner, tail in re.findall(r"list_no=(\d+)[^>]*>(.*?)</a>(.{0,400})", t, re.S):
-            ttl = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", inner)).strip()
-            dt = re.search(r"(\d{4})/(\d{2})/(\d{2})", re.sub(r"<[^>]+>", " ", tail))
+        # 목록 한 줄 = 다음 'list_no=' 앞까지 (줄마다 길이가 달라 고정 길이로 자르면 줄을 놓침)
+        cuts = [m.start() for m in re.finditer(r"list_no=\d+", t)] + [len(t)]
+        for a, b in zip(cuts, cuts[1:]):
+            m = re.match(r"list_no=(\d+)[^>]*>(.*?)</a>", t[a:b], re.S)
+            if not m:
+                continue
+            n, ttl = m.group(1), re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", m.group(2))).strip()
+            dt = re.search(r"(\d{4})/(\d{2})/(\d{2})", re.sub(r"<[^>]+>", " ", t[a + m.end():b]))
             if dt and "전망" in ttl:
                 posts[int(n)] = (ttl, pd.Timestamp("-".join(dt.groups())))
     todo = {n: v for n, v in posts.items() if pd.Timestamp(start) <= v[1] <= pd.Timestamp(end)}
