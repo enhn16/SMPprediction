@@ -37,7 +37,7 @@ surge_classifier/
 └─ outputs/figures|tables
 ```
 - 정제 데이터는 `../data/processed/surge_classifier/`에 저장.
-- **데이터는 팀 목록 13종만** (루트 CLAUDE.md, 내일 하루전 수요예측은 피처로 쓰지 않음). 과제1 피처 테이블은 목록 밖 자료(단기예보 격자·ASOS)가 섞여 있어 쓰지 않고, `src/features.py`가 12종으로 새로 만든다.
+- **데이터는 팀 목록만** (루트 CLAUDE.md — 2026-11-03부터 14종, 가스요금은 한 달 예측 전용이라 급등은 13종 안에서, 내일 하루전 수요예측은 피처로 쓰지 않음). 과제1 피처 테이블은 목록 밖 자료(단기예보 격자·ASOS)가 섞여 있어 쓰지 않고, `src/features.py`가 12종으로 새로 만든다.
 - 실행 순서 (루트에서): `python -m surge_classifier.src.label_days` → `.features` → `.extra_features` → `.collect_extra openmeteo` → `.team_model2`(팀원 재현) → `.team_model2_fa`(헛경보 후보, 검증) → **`.team_model3`(v3 산출물)** → **`.ops_surge`(운영 함수 검증)**
 - 결과 형식은 ROLES.md 4.1 (`kind=surge`, 15시 하나): `outputs/tables/surge_육지_15h.csv`, `surge_choice_육지_15h.json`, `surge_score_육지_15h.csv`, 운영 함수 `src/ops_surge.predict(bases)`. 예전 지수식·21시 결과는 `*_v1_index`·`*_v1`(`models.py`·`ops_surge_v1.py`).
 
