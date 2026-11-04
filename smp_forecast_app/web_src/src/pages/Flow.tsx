@@ -187,7 +187,7 @@ function HourlyFlow({ dates, H }: { dates: string[]; H: string }) {
         </div>
       </Card>
       <CoverageTrend H={H} end={dates[dates.length - 1]} />
-      <p className="muted">{when} 예측 = 대상일보다 {H}일 앞선 기준일 15시에 일주일 모델({REGION === '제주' ? '육지 일주일 예측 + 제주 잔차 보정' : 'K3'})이 낸 예측과 80% 범위입니다. 한낮 최저 가격과 급락 경보은 '한낮 최저 · 급락 경보' 탭에서 봅니다.</p>
+      <p className="muted">{when} 예측 = 대상일보다 {H}일 앞선 기준일 15시에 일주일 모델({REGION === '제주' ? '육지 일주일 예측 + 제주 잔차 보정' : 'Chronos-2 두 판 + 오차 보정'})이 낸 예측과 80% 범위입니다. 한낮 최저 가격과 급락 경보은 '한낮 최저 · 급락 경보' 탭에서 봅니다.</p>
     </>
   )
 }
