@@ -49,6 +49,14 @@ PLAYER_COLS = {g: [c for c in GROUPS[g] if c in COLS] for g in PLAYERS[1:]}
 
 
 # ---------------------------------------------------------------- 기여 계산
+
+def _ira(word: str) -> str:
+    """서술격 조사 '(이)라': 끝 글자에 받침이 있으면 '이라', 없으면 '라' (예: 주말이라, 명절 연휴라, 연휴 3일째라)."""
+    c = word[-1:] if word else ""
+    if "가" <= c <= "힣":
+        return "이라" if (ord(c) - 0xAC00) % 28 else "라"
+    return "이라"
+
 def _shapley(v: dict, n: int) -> np.ndarray:
     """v[frozenset(조합)] = 예측 배열(날짜 수) → 선수별 Shapley 값 (n × 날짜 수)."""
     out = []
@@ -184,7 +192,7 @@ def _texts(feat: str, up: bool, x: pd.Series, med: pd.Series, prev_label: str, u
                 kind = "주말"
             else:
                 kind = "징검다리 평일" if x["is_bridge"] else ""
-            return f"내일은 {kind}이라 공장·사무실 전력 수요가 적습니다", bool(kind)
+            return f"내일은 {kind}{_ira(kind)} 공장·사무실 전력 수요가 적습니다", bool(kind)
         return "내일은 평일이라 낮 전력 수요가 많습니다", not x["is_offday"] and not x["is_bridge"]
     if feat in ("month_sin", "month_cos"):
         mo = pd.Timestamp(x["date"]).month
