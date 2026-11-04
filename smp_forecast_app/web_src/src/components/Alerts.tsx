@@ -31,8 +31,9 @@ function Card({ kind, lv, prob, date, sub, why, note, naName, warn, strong }: { 
   return (
     <section className="card px-5 py-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <h2 className="h-sec">내일 {kind === 'drop' ? '급락' : '급등'} 경보</h2>
-        <span className="muted tabular-nums">{date} · {sub}</span>
+        {/* 제목은 대상 날짜로 ('내일' 고정 문구는 공표 뒤 그날이 오늘이 되면 틀림), 오른쪽은 해당 시간만 */}
+        <h2 className="h-sec">{date} {kind === 'drop' ? '급락' : '급등'} 경보</h2>
+        <span className="muted">{sub}</span>
       </div>
       <div className="mt-2 flex flex-wrap items-baseline gap-x-2.5">
         <span className="text-[20px] font-bold leading-tight" style={{ color: c ? c.text : 'var(--color-mute)' }}>{lv === 'na' && naName ? naName : NAME[lv]}</span>
@@ -57,7 +58,7 @@ function Card({ kind, lv, prob, date, sub, why, note, naName, warn, strong }: { 
   )
 }
 
-/** 내일 급락·급등 경보 두 장 (서비스 화면: 상태·확률 + 막대 + 근거 3줄, 세부는 참고 문서) */
+/** 대상일 급락·급등 경보 두 장 (서비스 화면: 상태·확률 + 막대 + 근거 3줄, 세부는 참고 문서) */
 export function Alerts({ iso }: { iso: string }) {
   const d = D.week.drop, s = surgeData()?.past[iso]
   const dropLv: Lv = !dropTarget(iso) || !d ? 'na' : LEVEL[d.grade]?.key ?? 'low'

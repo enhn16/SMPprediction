@@ -44,7 +44,7 @@ export function Week() {
   const pick = (on: boolean) => `rounded-ui px-3 py-2.5 text-left transition ${on ? 'bg-brand-dark text-white' : 'hover:bg-track'}`
   return (
     <div className="space-y-5">
-      <PageHeader eyebrow={`예측 · ${REGION}`} title="일주일 예측" sub="내일부터 7일 동안의 시간별 SMP와 80% 범위"
+      <PageHeader eyebrow={`예측 · ${REGION}`} title="일주일 예측" sub="기준일 다음 날부터 7일 동안의 시간별 SMP와 80% 범위"
         meta={[{ k: '기준일', v: <>{W.base} 15시 판단</>, hl: true }, { k: '대상', v: <>{lab(days[0].date)} ~ {lab(days[days.length - 1].date)}</> }, { k: '범위', v: '80%' }, ...(recentText() ? [{ k: '최근 7일 정확도', v: recentText() }] : [])]} />
       <Alerts iso={days[0].date} />
       <section className="card">
@@ -70,7 +70,6 @@ export function Week() {
                 <div className={`flex items-baseline justify-between gap-1 text-[12px] font-medium ${on ? 'text-white/75' : d.off ? 'text-bad' : 'text-sub'}`}
                   style={on && d.off ? { color: LV.strong.soft } : undefined}>
                   <span className="truncate">{lab(d.date)}{hol && <span className="ml-1 text-[11px]">{d.dt}</span>}</span>
-                  {i === 0 && <span className={`text-[11px] font-semibold ${on ? 'text-white' : 'text-brand'}`}>내일</span>}
                 </div>
                 <div className={`mt-1 text-[19px] font-semibold leading-tight tracking-tight tabular-nums ${on ? 'text-white' : 'text-ink'}`}>
                   {fmt(avg(d.p))}<span className={`ml-0.5 text-[11.5px] font-medium ${on ? 'text-white/70' : 'text-mute'}`}>원</span>
@@ -108,7 +107,7 @@ export function Week() {
       </Card>
       {REGION === '제주'
         ? <p className="muted">제주 가격은 대부분의 시간에 육지와 같아(2026년 91%) 육지 일주일 예측에 제주 잔차 보정(0.25배)을 더해 냅니다. 범위 하한은 음수 가격이 있어 0원에서 자르지 않습니다. 위의 급락·급등 경보는 별도 모델이 계산합니다.</p>
-        : <p className="muted">내일(첫날) 시간별 가격은 일주일 모델(Chronos-2 두 판 + 오차 보정)의 D+1입니다. 내일 급락 경보가 주의 이상이면 내일 11~15시 범위의 아래쪽을 0원까지 넓힙니다. 위의 급락·급등 경보는 별도 모델이 계산합니다.</p>}
+        : <p className="muted">첫날 시간별 가격은 일주일 모델(Chronos-2 두 판 + 오차 보정)의 D+1입니다. 첫날 급락 경보가 주의 이상이면 그날 11~15시 범위의 아래쪽을 0원까지 넓힙니다. 위의 급락·급등 경보는 별도 모델이 계산합니다.</p>}
     </div>
   )
 }
