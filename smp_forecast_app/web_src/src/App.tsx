@@ -8,20 +8,21 @@ import { Flow } from './pages/Flow'
 import { Calendar } from './pages/Calendar'
 import { Docs, type DocPage } from './pages/Docs'
 import { Help } from './pages/Help'
+import { Cases, type CaseTab } from './pages/Cases'
 
-export type Route = 'week' | 'month' | 'flow' | 'cal' | 'docs' | 'help'
+export type Route = 'week' | 'month' | 'flow' | 'cal' | 'docs' | 'cases' | 'help'
 // 좌측 메뉴: 비슷한 것끼리 묶음 (예측 / 검증 / 안내)
 const NAV: { group: string; items: { r: Route; t: string; icon: string }[] }[] = [
   { group: '예측', items: [{ r: 'week', t: '일주일 예측', icon: 'M3 5h18M3 10h18M3 15h12M3 20h8' }, { r: 'month', t: '한 달 예측', icon: 'M4 5h16v15H4zM4 9h16M9 3v4M15 3v4' }] },
   { group: '검증', items: [{ r: 'flow', t: '이전 흐름 확인', icon: 'M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 7v5l3 2' }, { r: 'cal', t: '예측 달력', icon: 'M4 5h16v15H4zM4 9h16M9 3v4M15 3v4M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01' }] },
-  { group: '안내', items: [{ r: 'docs', t: '참고 문서', icon: 'M6 3h9l5 5v13H6zM14 3v6h6M9 13h8M9 17h6' }, { r: 'help', t: '설명', icon: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16v-1M12 8a2.2 2.2 0 0 1 1.3 4c-.8.5-1.3 1-1.3 2' }] },
+  { group: '안내', items: [{ r: 'docs', t: '참고 문서', icon: 'M6 3h9l5 5v13H6zM14 3v6h6M9 13h8M9 17h6' }, { r: 'cases', t: '사례 분석', icon: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4M8 11h6M11 8v6' }, { r: 'help', t: '설명', icon: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16v-1M12 8a2.2 2.2 0 0 1 1.3 4c-.8.5-1.3 1-1.3 2' }] },
 ]
 const DOC_PAGES: DocPage[] = ['ov', 'drop', 'surge', 'wk', 'mo']
 
-function parse(): { r: Route; doc: DocPage } {
+function parse(): { r: Route; doc: DocPage; ct: CaseTab } {
   const [a, b] = location.hash.slice(1).split('/')
-  const r = (['week', 'month', 'flow', 'cal', 'docs', 'help'] as Route[]).includes(a as Route) ? (a as Route) : 'help' // 첫 화면 = 설명
-  return { r, doc: DOC_PAGES.includes(b as DocPage) ? (b as DocPage) : 'ov' }
+  const r = (['week', 'month', 'flow', 'cal', 'docs', 'cases', 'help'] as Route[]).includes(a as Route) ? (a as Route) : 'help' // 첫 화면 = 설명
+  return { r, doc: DOC_PAGES.includes(b as DocPage) ? (b as DocPage) : 'ov', ct: (['sum', '1', '2', '3', '4'] as CaseTab[]).includes(b as CaseTab) ? (b as CaseTab) : 'sum' }
 }
 
 // 제주를 보고 있을 때 한눈에 구분되도록 로고·계통 이름을 주황으로
@@ -153,6 +154,7 @@ export default function App() {
           {st.r === 'flow' && <Flow />}
           {st.r === 'cal' && <Calendar />}
           {st.r === 'docs' && <Docs page={st.doc} onPage={(p) => go('docs', p)} />}
+          {st.r === 'cases' && <Cases tab={st.ct} onTab={(t) => { location.hash = `cases/${t}` }} />}
           {st.r === 'help' && <Help go={go} />}
           <footer className="mt-12 text-[12px] text-mute">
             출처: 전력거래소·EPSIS·기상청·한국천문연구원·한국가스공사 공공데이터, Open-Meteo

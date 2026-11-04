@@ -96,7 +96,7 @@ def case(d, kind, h, day, asos, sup, nuc, curt, wrn):
     ax.plot(hrs, t["smp"].reindex(hrs), color="#d62728", lw=2.4, marker="o", ms=3.5, label=f"SMP {D:%m/%d}")
     ax.plot(hrs, p["smp"].reindex(hrs), color="#7f7f7f", lw=1.3, ls="--", label="SMP 전날")
     ax.plot(hrs, wk["smp"].reindex(hrs), color="#1f77b4", lw=1.3, ls=":", label="SMP 지난주 같은 요일")
-    ax.set_xlabel("거래시간 (h = 실제 h−1 ~ h시)")
+    ax.set_xlabel("거래시간 (h = 실제 h-1 ~ h시)")
     ax.set_ylabel("SMP (원/kWh)")
     ax.set_xticks(range(1, 25, 2))
     ax.axvspan(10.5, 15.5, color="#eeeeee", zorder=0)
