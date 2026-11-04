@@ -49,9 +49,16 @@ function Card({ kind, lv, prob, date, sub, why, note, naName, warn, strong }: { 
           ) : (
             <li key={r.t} className="flex gap-2 text-[13px] leading-5 text-ink">
               <span className="mt-[1px] shrink-0 text-[10px]" style={{ color: r.dir === 'up' ? LV.strong.text : LV.low.text }}>{r.dir === 'up' ? '▲' : '▼'}</span>
-              {r.t}
+              <span className="min-w-0 flex-1">{r.t}</span>
+              {r.v && <span className="shrink-0 font-semibold tabular-nums text-sub">{r.v}</span>}
             </li>
           ))}
+          {/* 근거별 숫자의 뜻 (현업 요구: 요인별 부호·원 단위) */}
+          {why.some((r) => r.v) && (
+            <li className="pt-0.5 text-[11px] text-mute">
+              숫자 = 근거별 {kind === 'drop' ? '예상 한낮 최저 가격' : '급등 확률'} 영향 ({lv === 'low' ? '위험했던 날' : kind === 'drop' ? '평소 날' : '평소 평일'}과 비교)
+            </li>
+          )}
         </ul>
       )}
     </section>

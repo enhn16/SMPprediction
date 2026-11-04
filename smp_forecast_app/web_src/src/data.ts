@@ -18,7 +18,7 @@ export type RegionData = {
   dropMeta: DropMeta
 }
 /** 예측 근거 (과제3): 위험을 높이는 쪽 up / 낮추는 쪽 down, 쉬운 문장 */
-export type Why = { t: string; dir: 'up' | 'down' | 'none' }[] // none = 확실한 근거 없음 (화살표 없이 회색 문장)
+export type Why = { t: string; dir: 'up' | 'down' | 'none'; v?: string }[] // none = 확실한 근거 없음 (화살표 없이 회색 문장), v = 근거별 영향 (급락 원·급등 %p)
 export type SurgeLevel = { n: number; k: number; rate: number | null; perMonth: number; lift: number | null }
 export type SurgeData = { past: Record<string, { grade: string; prob: number | null }>; meta: { base: number | null; days: number; warnP: number; strongP: number; warn: SurgeLevel; strong: SurgeLevel }; model: string }
 export type SmpData = RegionData & {
