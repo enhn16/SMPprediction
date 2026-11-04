@@ -89,7 +89,7 @@ def _peaks(text: str, posted: pd.Timestamp) -> list[dict]:
     if i < 0:
         return []
     sec = text[i:]
-    ds = re.findall(r"(\d{1,2})/(\d{1,2})\s*\(", sec)[:9]
+    ds = re.findall(r"(\d{1,2})/(\d{1,2})\(", sec.replace(" ", ""))[:9]   # PDF 글자에 '1 2 /1 1 (토)'처럼 띄어쓰기가 끼기도 함
     j = sec.find("최대부하", 4)
     nums = [float(x.replace(",", "")) for x in re.findall(r"\d{1,3}(?:,\d{3})+|\d{2,3}\.\d", sec[j:])][:9] if j >= 0 else []
     if len(ds) < 7 or len(nums) < len(ds):
@@ -156,6 +156,55 @@ def weekly(start="2019-12-01", end="2022-12-24", pages=range(18, 44)):
     out.to_csv(BK / "weekly_outlook_2020_2022.csv", index=False, encoding="utf-8-sig")
     pd.DataFrame(fails, columns=["list_no", "title", "posted"]).to_csv(BK / "weekly_outlook_failed.csv", index=False, encoding="utf-8-sig")
     print(f"주간전망: 읽음 {out['list_no'].nunique() if len(out) else 0}건 {len(out)}행, 못 읽음 {len(fails)}건", flush=True)
+
+
+def weekly_ocr():
+    """weekly()가 못 읽은 글(그림 PDF·PNG)을 이미지 판독으로 보강 → weekly_outlook_2020_2022.csv에 덧붙임.
+    표는 게시 다음 날부터 연속 9일이라 날짜는 게시일로 정하고, '최대부하' 줄의 숫자 9칸만 읽는다 (못 읽은 칸은 빈칸)."""
+    import fitz
+    from common.collect.kpx_weekly_outlook import ocr_lines
+    d = BK / "kpx_weekly_outlook"
+    fails = pd.read_csv(BK / "weekly_outlook_failed.csv", parse_dates=["posted"])
+    rows, left = [], []
+    for r in fails.itertuples():
+        imgs = sorted(d.glob(f"{r.list_no}_*.png"))
+        for pdf in sorted(d.glob(f"{r.list_no}_*.pdf")):
+            doc = fitz.open(pdf)   # 그림 PDF: 들어 있는 그림을 그대로 꺼냄 (다시 그리면 흐려짐), 어느 그림에 표가 있는지 몰라 전부
+            for k, im in enumerate(doc[0].get_images()):
+                png = pdf.with_name(f"{pdf.stem}.img{k}.png")
+                if not png.exists():
+                    png.write_bytes(doc.extract_image(im[0])["image"])
+                imgs.append(png)
+        vals = None
+        for img in imgs:
+            lines = ocr_lines(img)
+            num = re.compile(r"\d{2}[.,]?\d{3}")   # OCR이 쉼표를 마침표로 읽거나 빼먹기도 함 (59.500, 64600)
+            start = next((i for i, ln in enumerate(lines) if "최대" in ln or "부하" in ln), 0)
+            for ln in lines[start:]:
+                toks = ln.split()
+                if len(toks) >= 9 and sum(bool(num.fullmatch(t)) for t in toks[:9]) >= 6:
+                    vals = [float(re.sub(r"[.,]", "", t)) / 1000 if num.fullmatch(t) else None for t in toks[:9]]
+                    break
+            if vals:
+                # 표 첫날 = 문서 작성일('22.10.7(금)') 다음 날. 게시가 늦은 글이 있어 작성일을 읽으면 그것을 씀
+                w = next((re.search(r"(\d{2})\.\s?(\d{1,2})\.\s?(\d{1,2})", ln) for ln in lines
+                          if re.search(r"(\d{2})\.\s?(\d{1,2})\.\s?(\d{1,2})", ln)), None)
+                try:
+                    wd = pd.Timestamp(2000 + int(w.group(1)), int(w.group(2)), int(w.group(3))) if w else None
+                except ValueError:
+                    wd = None
+                base = wd if wd is not None and pd.Timedelta(0) <= r.posted - wd <= pd.Timedelta(days=10) else r.posted
+                break
+        if not vals:
+            left.append(r.list_no)
+            continue
+        for k, v in enumerate(vals):
+            if v is not None and 40 <= v <= 100:
+                rows.append({"list_no": r.list_no, "title": r.title, "posted": r.posted.date(), "source": "ocr",
+                             "target_date": (base + pd.Timedelta(days=k + 1)).date(), "written": base.date(), "peak_gw": round(v, 2)})
+    out = BK / "weekly_outlook_2020_2022.csv"
+    pd.concat([pd.read_csv(out), pd.DataFrame(rows)]).to_csv(out, index=False, encoding="utf-8-sig")
+    print(f"이미지 판독: {len(fails) - len(left)}건 {len(rows)}행 추가, 못 읽음 {left}", flush=True)
 
 
 if __name__ == "__main__":
