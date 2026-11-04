@@ -401,8 +401,8 @@ def daily():
     if today.day <= 10:
         run(["common.collect.epsis_fuel_cost", "202301"])
         run(["common.collect.epsis_capacity"])
-    if today.month == 12:
-        run(["common.collect.holidays", str(today.year), str(today.year + 1)])
+    # 특일정보: 매일 올해·내년분 (임시공휴일은 몇 주 전에 갑자기 지정되므로 12월 1회로는 놓침, 2026-11-04 변경, 호출 2회)
+    run(["common.collect.holidays", str(today.year), str(today.year + 1)])
     features_daily.main()
     last_act = load_smp_actual("육지")["date"].max()
     done = _read("hourly_log_k3.csv", parse_dates=["base_date"])
