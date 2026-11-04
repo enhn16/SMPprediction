@@ -34,6 +34,8 @@ export function bandOption(o: {
   extra?: { name: string; data: N[]; color: string; dash?: boolean }[]   // 범위 없이 함께 그릴 보조 선 (한 달: 저녁·한낮)
 }): echarts.EChartsCoreOption {
   const n = o.x.length
+  // 확대(dataZoom)하면 ECharts가 넘기는 눈금 번호가 '보이는 구간 안 순번'이라 어긋남 → 값으로 전체 순번을 찾는다 (x 값은 모두 서로 다름)
+  const xIdx = new Map(o.x.map((v, i) => [v, i]))
   const lo = o.lo.map((v) => v ?? null), diff = o.hi.map((v, i) => (v != null && o.lo[i] != null ? (v as number) - (o.lo[i] as number) : null))
   const outPts = o.y.map((v, i) => (v != null && o.lo[i] != null && !inside(v, o.lo[i], o.hi[i]) ? [i, v] : null)).filter(Boolean)
   const vals = [...o.lo, ...o.hi, ...o.y, ...o.p].filter((v): v is number => v != null)
@@ -60,7 +62,7 @@ export function bandOption(o: {
     xAxis: {
       type: 'category', data: o.x, boundaryGap: !!o.daily, // 일별은 날짜 칸 단위 (휴무일 음영이 한 칸 폭)
       axisLine: { lineStyle: { color: C.divider } }, axisTick: { show: false },
-      axisLabel: { color: C.sub, fontSize: 11, interval: 0, formatter: (_: string, i: number) => (o.xLabel ? o.xLabel(i) : _) },
+      axisLabel: { color: C.sub, fontSize: 11, interval: 0, formatter: (v: string) => (o.xLabel ? o.xLabel(xIdx.get(v) ?? 0) : v) },
     },
     yAxis: [{ type: 'value', min: ymin0,splitLine: { lineStyle: { color: C.line, type: 'dashed' } }, axisLabel: { color: C.sub, fontSize: 11 }, name: '원', nameTextStyle: { color: C.mute, fontSize: 11, padding: [0, 24, 0, 0] } },
       { type: 'value', min: 0, max: 1, show: false }],
