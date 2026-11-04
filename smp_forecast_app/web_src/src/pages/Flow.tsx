@@ -109,7 +109,7 @@ function DropFlow({ dates }: { dates: string[] }) {
           </table>
         </div>
       </Card>
-      <p className="muted">내일 급락 경보 = 대상일 하루 전 15시에 {D.dropMeta.model}이 낸 판정. 급락 = 11~15시 최저 SMP 30원 미만 (육지는 모든 날, 제주는 현재 휴일·주말). 결과는 주의 이상을 경보로 봅니다.</p>
+      <p className="muted">급락 경보 = 대상일 하루 전 15시에 {D.dropMeta.model}이 낸 판정. 급락 = 11~15시 최저 SMP 30원 미만 (육지는 모든 날, 제주는 현재 휴일·주말). 결과는 주의 이상을 경보로 봅니다.</p>
     </>
   )
 }

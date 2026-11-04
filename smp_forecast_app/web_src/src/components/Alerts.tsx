@@ -64,12 +64,14 @@ export function Alerts({ iso }: { iso: string }) {
   const dropLv: Lv = !dropTarget(iso) || !d ? 'na' : LEVEL[d.grade]?.key ?? 'low'
   const surgeLv: Lv = !s ? 'na' : s.grade === '경보' ? 'strong' : s.grade === '주의' ? 'warn' : 'low'
   const why = REGION === '육지' ? D.why ?? {} : {}
+  // 근거 문장: 화면에서는 '내일'을 뺌 (공표 뒤 그날이 오늘이 되면 틀림), 값이 비어 'nan'이 찍힌 문장은 숨김
+  const clean = (w?: Why) => w?.filter((r) => !/nan/.test(r.t)).map((r) => ({ ...r, t: r.t.replace(/내일(은)?\s*/g, '') }))
   return (
     <div className={`grid gap-5 ${REGION === '육지' ? 'md:grid-cols-2' : ''}`}>
-      <Card kind="drop" lv={dropLv} prob={d?.prob} date={lab(iso)} sub="한낮 11~15시" why={why.drop?.[iso]} warn={T_WARN} strong={T_STRONG}
+      <Card kind="drop" lv={dropLv} prob={d?.prob} date={lab(iso)} sub="한낮 11~15시" why={clean(why.drop?.[iso])} warn={T_WARN} strong={T_STRONG}
         note="예측이 아직 없습니다." />
       {REGION === '육지' && (
-      <Card kind="surge" lv={surgeLv} prob={s?.prob} date={lab(iso)} sub="하루 최고 가격" why={why.surge?.[iso]}
+      <Card kind="surge" lv={surgeLv} prob={s?.prob} date={lab(iso)} sub="하루 최고 가격" why={clean(why.surge?.[iso])}
         warn={surgeData()?.meta.warnP ?? 0.04} strong={surgeData()?.meta.strongP ?? 0.19}
         note="예측이 아직 없습니다." />
       )}
