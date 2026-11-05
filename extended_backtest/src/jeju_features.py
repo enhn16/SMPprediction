@@ -156,7 +156,7 @@ def build() -> pd.DataFrame:
                         "yd_land_mid_min": sh["land_mid_min"],
                         "mid_min_28med": sh["mid_min"].rolling(28, min_periods=7).median()}).rename_axis("date").reset_index()
     df = df.merge(rec, on="date", how="left")
-    df["yd_mid_rel"] = df["yd_mid_min"] / df["mid_min_28med"]
+    df["yd_mid_rel"] = df["yd_mid_min"] - df["mid_min_28med"]   # 원 (28일 중앙값이 0원일 수 있어 비율 대신 차이)
 
     fuel = loaders.load_fuel_cost()
     m = df["date"].dt.to_period("M").dt.to_timestamp()

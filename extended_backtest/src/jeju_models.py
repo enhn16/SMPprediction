@@ -59,7 +59,7 @@ def pipe(m):
 def _lgb():
     from lightgbm import LGBMClassifier
     return LGBMClassifier(n_estimators=300, learning_rate=0.03, max_depth=2, num_leaves=4, min_child_samples=15,
-                          subsample=0.8, subsample_freq=1, colsample_bytree=0.8, reg_lambda=1.0, random_state=SEED, verbose=-1)
+                          subsample=0.8, subsample_freq=1, colsample_bytree=0.8, reg_lambda=1.0, random_state=SEED, verbose=-1, n_jobs=1)
 
 
 def _ebm():
