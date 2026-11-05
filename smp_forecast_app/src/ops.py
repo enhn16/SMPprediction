@@ -1,7 +1,7 @@
 """운영(매일 예측) — 작업 스케줄러가 호출. 웹앱 모델(2026-10-22 선택)을 그대로 쓴다.
 
   python -m smp_forecast_app.src.ops train    매주 일요일: 일주일 잔차 보정(LightGBM)·한 달 mx v2(표 모델·LSTM·GRU) 재학습·저장
-  python -m smp_forecast_app.src.ops daily    매일 15:30(+로그온·절전 해제·매시 재시도): 수집 → 밀린 기준일까지 예측(육지 → 제주) → 기록 → 웹 → 푸시
+  python -m smp_forecast_app.src.ops daily    매일 15:30(+로그온·매시 재시도, 2026-11-05부터 절전 해제 안 함): 수집 → 밀린 기준일까지 예측(육지 → 제주) → 기록 → 웹 → 푸시
                                               15:30 전에는 어제 기준일까지만 산출, 산출할 것이 없으면 바로 끝남
   python -m smp_forecast_app.src.ops actuals  매일 21:30: 공표 SMP 수집 → 웹 → 푸시
 
