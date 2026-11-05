@@ -67,3 +67,31 @@ def offday_flags(dates: pd.Series) -> pd.Series:
     hol = set(load_holidays_all()["date"])
     d = pd.to_datetime(dates)
     return (d.dt.weekday >= 5) | d.isin(hol)
+
+
+def load_jeju_sukub_all() -> pd.DataFrame:
+    """제주 5분 실적 2019-12 ~ 최신 → [time, supply, demand, renew, solar, wind] (MW). 운영 로더와 같은 열·처리.
+
+    - 2019-12·2020-01, 빈 날(2023-07-02, 2026-10-29~31): backfill_2020/kpx_jeju_sukub (API, jeju_collect_sukub)
+    - 2020-02 ~ 2022-12: backfill_2020/kpx_jeju_sukub_dl/chejusukub_YYYY.csv (사용자 내려받기, cp949, 2026-11-06)
+    - 2023-01 ~      : 운영 로더 common.loaders.load_kpx_jeju_sukub (겹치면 운영 값 우선)
+    공급능력·수요 0 이하는 결측 처리 (운영 로더와 같음).
+    """
+    import numpy as np
+    api = pd.concat([pd.read_csv(p, dtype={"baseDatetime": str})
+                     for p in sorted((BF / "kpx_jeju_sukub").glob("jeju5m_*.csv"))], ignore_index=True)
+    api = pd.DataFrame({"time": pd.to_datetime(api["baseDatetime"], format="%Y%m%d%H%M%S"),
+                        "supply": api["suppAbility"], "demand": api["currPwrTot"], "renew": api["renewPwrTot"],
+                        "solar": api["renewPwrSolar"], "wind": api["renewPwrWind"]})
+    dl = pd.concat([pd.read_csv(p, encoding="cp949", dtype=str)
+                    for p in sorted((BF / "kpx_jeju_sukub_dl").glob("chejusukub_*.csv"))], ignore_index=True)
+    dl.columns = ["time", "supply", "demand", "renew", "solar", "wind"]
+    dl["time"] = pd.to_datetime(dl["time"], format="%Y%m%d%H%M%S")
+    ops = loaders.load_kpx_jeju_sukub()
+    out = pd.concat([ops, dl, api], ignore_index=True)   # 앞쪽 우선
+    num = ["supply", "demand", "renew", "solar", "wind"]
+    out[num] = out[num].apply(pd.to_numeric, errors="coerce")
+    out = out.drop_duplicates("time").sort_values("time").reset_index(drop=True)
+    out.loc[out["supply"] <= 0, "supply"] = np.nan
+    out.loc[out["demand"] <= 0, ["demand", "renew", "solar", "wind"]] = np.nan
+    return out
