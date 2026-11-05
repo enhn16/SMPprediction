@@ -27,6 +27,12 @@ extended_backtest/
 ├─ CLAUDE.md, docs/PLAN.md
 ├─ src/data.py      2019~ SMP·특일 로더 (보강분 + 운영 로더)
 ├─ src/events.py    새 기준 사건 구간 집계 → outputs/tables/E1_*
+├─ src/drop_features.py  육지 급락 피처 2020~ (운영 정의 그대로) → data/processed/extended_backtest/
+├─ src/drop_walk.py      육지 급락 매달 학습·문턱 → outputs/tables/D1_*
 └─ outputs/tables/
 ```
-실행(루트에서): `python -m extended_backtest.src.events`
+실행(루트에서): `python -m extended_backtest.src.events` → `.drop_features` → `.drop_walk`
+
+## 5. 학습·시험 (2026-11-06 확정, PLAN ②)
+- 시험 2025-01-01 ~ 2026-10-31. 매달 그 전달까지 자료로 학습, 문턱은 앞 12개월 앞으로만 예측으로 매달. 급락·급등 모두 전체 날.
+- 제주 급락은 별도 채팅(`docs/HANDOFF_jeju.md`).
