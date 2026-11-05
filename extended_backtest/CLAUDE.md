@@ -29,9 +29,13 @@ extended_backtest/
 ├─ src/events.py    새 기준 사건 구간 집계 → outputs/tables/E1_*
 ├─ src/drop_features.py  육지 급락 피처 2020~ (운영 정의 그대로) → data/processed/extended_backtest/
 ├─ src/drop_walk.py      육지 급락 매달 학습·문턱 → outputs/tables/D1_*
+├─ src/surge_features.py, surge_walk.py  육지 급등 피처 2020~·매달 학습(옛/새 레이블) → S1_*
+├─ src/score_tables.py   표 1·2·3 → T1_*, T2_*, T3_*
+├─ src/ablation.py, miss_analysis.py  사후 분석(참고) → A*, M*
+├─ docs/RESULTS.md (발표용 결과), ANALYSIS_NOTES.md (해 보니 이랬다·피드백 확인)
 └─ outputs/tables/
 ```
-실행(루트에서): `python -m extended_backtest.src.events` → `.drop_features` → `.drop_walk`
+실행(루트에서): `python -m extended_backtest.src.events` → `.drop_features` → `.drop_walk` / `.surge_features` → `.surge_walk` → `.score_tables` → `.ablation`, `.miss_analysis`
 
 ## 5. 학습·시험 (2026-11-06 확정, PLAN ②)
 - 시험 2025-01-01 ~ 2026-10-31. 매달 그 전달까지 자료로 학습, 문턱은 앞 12개월 앞으로만 예측으로 매달. 급락·급등 모두 전체 날.
