@@ -22,7 +22,7 @@ const DOC_PAGES: DocPage[] = ['ov', 'drop', 'surge', 'wk', 'mo']
 function parse(): { r: Route; doc: DocPage; ct: CaseTab } {
   const [a, b] = location.hash.slice(1).split('/')
   const r = (['week', 'month', 'flow', 'cal', 'docs', 'cases', 'help'] as Route[]).includes(a as Route) ? (a as Route) : 'help' // 첫 화면 = 설명
-  return { r, doc: DOC_PAGES.includes(b as DocPage) ? (b as DocPage) : 'ov', ct: (['sum', '1', '2', '3', '4'] as CaseTab[]).includes(b as CaseTab) ? (b as CaseTab) : 'sum' }
+  return { r, doc: DOC_PAGES.includes(b as DocPage) ? (b as DocPage) : 'ov', ct: (['sum', 'eval', '1', '2', '3', '4'] as CaseTab[]).includes(b as CaseTab) ? (b as CaseTab) : 'sum' }
 }
 
 // 제주를 보고 있을 때 한눈에 구분되도록 로고·계통 이름을 주황으로
