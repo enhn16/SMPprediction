@@ -144,6 +144,9 @@ def main():
     if p.exists():
         dd = pd.read_csv(p, parse_dates=["date"])
         mem = []
+        global WINDOWS
+        WINDOWS = {"2024 (연습)": ("2024-01-01", "2024-12-31"), "2025": ("2025-01-01", "2025-12-31"),
+                   "2026 (2차 시험)": ("2026-01-01", "2026-10-31")}
         for col, name in (("pred_lstm", "LSTM 혼자"), ("pred_lgbm", "LightGBM 혼자"), ("pred", "두 모델 평균 (운영)")):
             res = dd[["date", "label"]].rename(columns={"label": "y"}).assign(score=-dd[col])
             for w, m in metrics(res).items():

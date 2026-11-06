@@ -42,10 +42,14 @@ def raw_dir(path):
 
 
 def kma_regional_all() -> pd.DataFrame:
+    """보강분(2019-12~2022) + 운영분 + 운영 수집 빠진 곳 다시 받은 것(fix_2026: 2026-10-28~31 발표분 —
+    운영 수집기가 지난 달 파일을 다시 받지 않아 10/29~31 발표분이 빠졌음, 2026-11-06 확인)."""
     with raw_dir(BF):
         bf = L.load_kma_regional_fcst()
     ops = L.load_kma_regional_fcst()
-    out = pd.concat([bf, ops], ignore_index=True)
+    with raw_dir(BF / "fix_2026"):
+        fix = L.load_kma_regional_fcst()
+    out = pd.concat([bf, ops, fix], ignore_index=True)
     return out.drop_duplicates(["reg", "tm_fc", "tm_ef"], keep="last").reset_index(drop=True)
 
 
