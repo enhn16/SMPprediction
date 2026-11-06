@@ -68,6 +68,7 @@
 
 ## 시기별 성적 (분기, `src/period_table.py` → `outputs/tables/P1_by_quarter.csv`)
 매달 다시 학습하고 문턱도 매달 다시 정하므로, 시기마다 모델이 본 사건 수·문턱이 다르다. 그래서 시기별로 나눠 본다.
+발표용 그림: `outputs/figures/F1_quarterly.png` (`src/plot_quarterly.py`) — 분기별 성공·부분·실패 비율(100% 누적), 막대 위 구간 수, 축 아래 학습한 사건일.
 '학습한 사건일' = 그 분기 첫 달~끝 달 모델이 학습 때 본 사건일 수(2020-01부터).
 
 **육지 급락 (LSTM + LightGBM 평균)**
