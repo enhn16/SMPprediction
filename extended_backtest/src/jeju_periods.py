@@ -5,6 +5,7 @@
 2) 학습 사건일 구간별 성적 (같은 모델을 학습 자료 양으로 나눠 봄)
 3) 주의 문턱이 낮아진 이유: 문턱을 정한 '지난 사건일'의 점수와, 그 예측을 낸 모델이 본 사건일 수
 4) 회사 운영 채점과 같은 기간(2026-08-11 ~ 10-31) 결과
+5) 사후 보완안(참고, 공식 아님): 문턱 근거에서 학습 사건일 5일 이하 모델의 예측 제외 → J7_caution_alt_jeju.csv
 저장: outputs/tables/J6_by_month_jeju.csv, J6_by_train_size_jeju.csv, J6_caution_basis_jeju.csv, J6_company_period_jeju.csv,
       outputs/figures/J6_by_month_jeju.png
 실행(루트에서): python -m extended_backtest.src.jeju_periods
@@ -97,6 +98,24 @@ def main():
     cp = pd.DataFrame(rows)
     cp.to_csv(TAB / "J6_company_period_jeju.csv", index=False, encoding="utf-8-sig")
     print(cp.to_string(index=False))
+
+    # 5) 사후 보완안(참고, 공식 아님): 문턱 근거에서 '학습 사건일 5일 이하 모델'의 예측을 뺌
+    #    근거는 시험 전 자료로도 나옴 — 그 예측들(2024-03 ~ 09)의 ROC-AUC 0.35
+    from extended_backtest.src.jeju_select import TEST, tables, thresholds_r2
+    te = p[(p["date"] >= TEST[0]) & (p["date"] <= TEST[1])].copy()
+    cs, al = [], []
+    for m, g_ in te.groupby("month"):
+        past = p[(p["date"] >= SEL[0]) & (p["date"] < m.start_time) & (p["train_events"] > 5)]
+        a, b_ = thresholds_r2(past["event"].values, past["score"].values)
+        cs += [a] * len(g_)
+        al += [b_] * len(g_)
+    te["caution"], te["alarm"] = cs, al
+    te["grade"] = np.select([te["score"] >= te["alarm"], te["score"] >= te["caution"]], ["경보", "주의"], "없음")
+    a1, a2, _ = tables(te)
+    alt = a1.merge(a2, on=["기간", "구분"])
+    alt.insert(0, "문턱", "사후 보완(참고): 학습 사건일 5일 이하 모델 예측 제외")
+    alt.to_csv(TAB / "J7_caution_alt_jeju.csv", index=False, encoding="utf-8-sig")
+    print(alt[alt["구분"] == "계"].to_string(index=False))
 
     # 그림
     import matplotlib.pyplot as plt
