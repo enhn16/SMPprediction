@@ -40,13 +40,13 @@ const T1 = [
   ['제주 급락 (0원)', '휴일', '52', '34 (65%)', '17 (33%)', '1 (2%)'],
   ['', '평일', '56', '38 (68%)', '16 (29%)', '2 (4%)'],
 ]
-// 혼동행렬 (날짜, 669일): [실제 있음·예측 냄, 실제 있음·예측 안 냄, 실제 없음·예측 냄, 실제 없음·예측 안 냄]
-const CM: { name: string; caution: number[]; alert: number[] }[] = [
-  { name: '육지 급락', caution: [32, 7, 60, 570], alert: [25, 14, 39, 591] },
-  { name: '육지 급등', caution: [243, 53, 219, 154], alert: [32, 264, 11, 362] },
-  { name: '제주 급락 (0원)', caution: [103, 3, 301, 262], alert: [72, 34, 80, 483] },
+// 혼동행렬 (날짜, 669일): [실제 있음·예측, 실제 있음·예측 없음, 실제 없음·예측, 실제 없음·예측 없음]
+const CM: { name: string; ev: string; caution: number[]; alert: number[] }[] = [
+  { name: '육지 급락', ev: '급락', caution: [32, 7, 60, 570], alert: [25, 14, 39, 591] },
+  { name: '육지 급등', ev: '급등', caution: [243, 53, 219, 154], alert: [32, 264, 11, 362] },
+  { name: '제주 급락 (0원)', ev: '0원', caution: [103, 3, 301, 262], alert: [72, 34, 80, 483] },
 ]
-function Matrix({ title, v }: { title: string; v: number[] }) {
+function Matrix({ title, ev, v }: { title: string; ev: string; v: number[] }) {
   const [tp, fn, fp, tn] = v
   const td = 'w-[84px] py-2.5 text-center text-[17px] font-bold tabular-nums'
   const th = 'px-2 py-1.5 text-[12.5px] font-semibold text-sub'
@@ -54,17 +54,17 @@ function Matrix({ title, v }: { title: string; v: number[] }) {
     <div>
       <div className="mb-1.5 text-[13.5px] font-semibold text-ink">{title}</div>
       <table className="border-collapse">
-        <thead><tr><th /><th className={th}>냄</th><th className={th}>안 냄</th></tr></thead>
+        <thead><tr><th /><th className={th}>{ev} 예측</th><th className={th}>예측 없음</th></tr></thead>
         <tbody>
-          <tr><th className={`${th} text-right`}>실제 있음</th>
+          <tr><th className={`${th} text-right`}>실제 {ev}</th>
             <td className={td} style={{ background: 'var(--color-brand-soft)' }}>{tp}</td>
             <td className={td} style={{ background: 'var(--color-warn-soft)' }}>{fn}<div className="text-[11px] font-normal text-mute">놓침</div></td></tr>
-          <tr><th className={`${th} text-right`}>실제 없음</th>
+          <tr><th className={`${th} text-right`}>실제 {ev} 없음</th>
             <td className={td} style={{ background: 'var(--color-warn-soft)' }}>{fp}<div className="text-[11px] font-normal text-mute">헛경보</div></td>
             <td className={`${td} text-mute`}>{tn}</td></tr>
         </tbody>
       </table>
-      <div className="mt-1.5 text-[12.5px] text-sub">잡은 비율 <b>{pct(tp, tp + fn)}</b> · 낸 날 중 맞은 비율 <b>{pct(tp, tp + fp)}</b></div>
+      <div className="mt-1.5 text-[12.5px] text-sub">잡은 비율 <b>{pct(tp, tp + fn)}</b> · 예측한 날 중 맞은 비율 <b>{pct(tp, tp + fp)}</b></div>
     </div>
   )
 }
@@ -98,8 +98,8 @@ function Model() {
           {CM.map((c) => (
             <div key={c.name} className="grid items-start gap-x-10 gap-y-3 sm:grid-cols-[120px_auto_auto] sm:justify-start">
               <div className="pt-7 text-[15px] font-bold text-ink">{c.name}</div>
-              <Matrix title="주의 이상을 '냄'으로" v={c.caution} />
-              <Matrix title="경보만 '냄'으로" v={c.alert} />
+              <Matrix title="주의·경보를 예측으로 볼 때" ev={c.ev} v={c.caution} />
+              <Matrix title="경보만 예측으로 볼 때" ev={c.ev} v={c.alert} />
             </div>
           ))}
         </div>
@@ -111,7 +111,6 @@ function Model() {
 
       <Sec title="2. 모델의 한계">
         <Items items={[
-          ['거래소 전망을 볼 수 없음', 'SMP는 거래소가 전날 저녁 낸 전망으로 정해지는데 우리는 15시에 판단합니다. 우리 예보가 거래소 전망과 다르면 놓칩니다(사례 ①②).'],
           ['처음 보는 유형', '평일 급락은 학습 자료에 거의 없어 3구간 중 1구간만 잡았습니다.'],
           ['공급 쪽 정보가 없음', '원전·풍력·지역 제약처럼 공급 쪽 사정으로 생긴 급락·급등은 우리 자료로 설명되지 않습니다.'],
           ["급등은 '가격 수준 이동'", '하루 전체 가격이 오른 날은 거의 다 급등이라, 하루 단위 수요·날씨로는 판별력이 0.65(ROC-AUC)에서 막힙니다. 휴일 급등은 51%를 놓쳤습니다.'],
@@ -134,7 +133,7 @@ const QUADS: Quad[] = [
     cause: '밤·새벽 1시간 상승이 대부분 — 수요·날씨로 설명 안 됨(발전기 기동·정지 추정). 낮에는 비 오는 휴일에 태양광이 빠져 LNG가 가격을 정함',
     model: '주의 이상 49% · 경보 3%', ex: '③ 2026. 5. 3.(일) 13~15시 134.5원 — 놓침' },
   { k: '평일 급등', tab: '4', n: '429구간', when: '61%가 낮(6~17시)에 시작, 1월(한파)·7월(폭염)·10월·4월',
-    cause: '한파·폭염으로 수요 증가 → 유류·비싼 LNG가 가격 결정. 그 밖에 지역 제약(10. 29.), 하루 전체 가격 수준 상승(급등일의 37%)',
+    cause: '한파·폭염으로 수요 증가 → 유류·비싼 LNG가 가격 결정. 그 밖에 하루 전체 가격 수준 상승(급등일의 37%)',
     model: '주의 이상 93% · 경보 15%', ex: '④ 2026. 1. 22.(목) 10시 186원 — 경보 적중' },
 ]
 const DROP_ROWS = [
@@ -179,7 +178,7 @@ function Summary({ go }: { go: (t: CaseTab) => void }) {
         <Items items={[
           ['가격은 거래소의 전날 전망으로 정해집니다', '다음 날 실제 날씨는 가격의 원인이 아닙니다. 두 급락 사례 모두 우리가 쓴 11시 예보가 거래소 전망과 반대(흐림)여서 놓쳤습니다.'],
           ["급락은 '수요−태양광'이 결정합니다", '휴일·평일보다, 거래소가 전망한 순부하가 원전 출력 아래로 내려가느냐가 핵심입니다.'],
-          ['급등은 두 갈래입니다', '수요 증가형(한파·폭염)은 기온 예보와 전날 가격으로 잡히지만(사례 ④), 휴일 급등(사례 ③)과 공급 쪽 사정(10. 29.)은 지금 모델이 잡지 못합니다.'],
+          ['급등은 두 갈래입니다', '수요 증가형(한파·폭염)은 기온 예보와 전날 가격으로 잡히지만(사례 ④), 비 오는 휴일처럼 낮아진 기준가와 날씨가 만나는 급등(사례 ③)은 잡지 못합니다.'],
           ['예측에 넣고 싶은 자료', '거래소 전망에 가까운 예보(여러 예보 비교), 수요예측 − 태양광 예보로 만든 순부하, 출력제어 전망 공지, 지역 제약·발전기 기동 계획.'],
         ]} />
       </Sec>
@@ -293,7 +292,7 @@ const CASES: Record<'1' | '2' | '3' | '4', Case> = {
     model: [
       "새 모델은 '경보'로 맞혔습니다(점수 0.86, 경보 문턱 0.70). 첫날 1. 21.은 '주의', 22·23일은 경보였습니다. 운영 모델도 22일 경보.",
       "맞힌 이유 : 한파는 기온 예보·주간 수요전망에 미리 보이고, 1. 21.에 급등이 시작되자 최근 가격 정보가 생겼습니다.",
-      "10. 29. 같은 공급 쪽 급등은 이런 신호가 없어 놓치기 쉽습니다."],
+      "날씨·수요 신호 없이 공급 쪽 사정으로 생기는 급등은 이런 단서가 없어 놓치기 쉽습니다."],
   },
 }
 const strong = (v: string) => /^(주원인|가장 유력|직접 원인)/.test(v)
