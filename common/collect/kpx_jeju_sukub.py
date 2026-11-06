@@ -34,9 +34,13 @@ def main(start: str = "20230101", end: str | None = None):
     for m in pd.period_range(pd.Timestamp(start), pd.Timestamp(end), freq="M"):
         ym = m.strftime("%Y%m")
         out = OUT_DIR / f"jeju5m_{ym}.csv"
-        if out.exists() and ym < this_month:
-            continue
         days = [d.strftime("%Y%m%d") for d in pd.date_range(max(m.start_time, pd.Timestamp(start)), min(m.end_time, pd.Timestamp(end)))]
+        if out.exists() and ym < this_month:
+            # 지난 달: 288행이 다 찬 날은 건너뛰고 모자란 날만 다시 받음 (2026-11-06: 달이 바뀌기 전 며칠이 빈 채로 굳던 문제)
+            have = pd.read_csv(out, usecols=["baseDatetime"], dtype=str)["baseDatetime"].str[:8].value_counts()
+            days = [d for d in days if have.get(d, 0) < 288]
+            if not days:
+                continue
         try:
             with ThreadPoolExecutor(WORKERS) as ex:
                 res = list(ex.map(fetch_day, days))
