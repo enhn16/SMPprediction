@@ -40,7 +40,11 @@ def main(start: str = "202312", end: str | None = None, region: str = "육지"):
             ym = m.strftime("%Y%m")
             out = OUT_DIR / f"afs_{reg}_{ym}.txt"
             if out.exists() and ym < this_month:
-                continue
+                # 지난 달: 그달 마지막 날 17시 발표분까지 있으면 건너뜀. 없으면 다시 받음
+                # (2026-11-06: 수집이 그달 말까지 안 돈 경우 마지막 며칠이 빈 채로 굳던 문제 — 10/29~31 발표분 누락)
+                last = max((l.split()[1] for l in out.read_text(encoding="utf-8").splitlines() if l.strip()), default="")
+                if last >= m.end_time.strftime("%Y%m%d") + "1700":
+                    continue
             t1 = m.start_time.strftime("%Y%m%d00")
             t2 = m.end_time.strftime("%Y%m%d23")
             for attempt in range(3):

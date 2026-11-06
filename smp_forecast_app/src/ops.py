@@ -304,8 +304,8 @@ def reasons(bases, run_at):
 
 # ---------------------------------------------------------------- 제주 (제주 채팅이 만든 jz_ops 호출, 육지 산출 뒤)
 def collect_jeju(today):
-    run(["common.collect.kpx_jeju_sukub", (today - pd.Timedelta(days=3)).strftime("%Y%m%d")])   # 5분 실적: 판단일 14:25까지 필요
-    run(["common.collect.kma_regional_fcst", (today - pd.Timedelta(days=3)).strftime("%Y%m"), today.strftime("%Y%m"), "jeju"])
+    run(["common.collect.kpx_jeju_sukub", (today - pd.Timedelta(days=14)).strftime("%Y%m%d")])   # 5분 실적: 판단일 14:25까지 필요
+    run(["common.collect.kma_regional_fcst", (today - pd.Timedelta(days=14)).strftime("%Y%m"), today.strftime("%Y%m"), "jeju"])
     run(["common.collect.openmeteo_prevruns", (today - pd.Timedelta(days=5)).strftime("%Y-%m-%d"),
          (today + pd.Timedelta(days=3)).strftime("%Y-%m-%d"), "jeju"])
     run(["common.collect.openmeteo_prevruns", (today - pd.Timedelta(days=5)).strftime("%Y-%m-%d"),
@@ -389,7 +389,7 @@ def daily():
     log("===== 매일 예측 시작 =====")
     today = due
     run(["common.collect.smp_forecast", "--recent", "5"])
-    run(["common.collect.kma_regional_fcst", (today - pd.Timedelta(days=3)).strftime("%Y%m"), today.strftime("%Y%m")])
+    run(["common.collect.kma_regional_fcst", (today - pd.Timedelta(days=14)).strftime("%Y%m"), today.strftime("%Y%m")])
     run(["common.collect.mid_fcst"])
     run(["common.collect.openmeteo_prevruns", (today - pd.Timedelta(days=5)).strftime("%Y-%m-%d"),
          (today + pd.Timedelta(days=1)).strftime("%Y-%m-%d")])   # D+1 일사·운량 (D-2 실행분, H=1 피처)
