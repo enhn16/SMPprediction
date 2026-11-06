@@ -153,6 +153,11 @@ function Summary({ go }: { go: (t: CaseTab) => void }) {
   return (
     <>
       <Sec title="1. 총 사례 정리" sub="시험 기간(2025. 1. ~ 2026. 10.) 육지 · 주원인은 가장 그럴듯한 것">
+        <Sub>급락 근거 숫자 (사건일 평균 / 같은 유형 평소, 2024. 1. ~ 2026. 10.)</Sub>
+        <Tbl cols={['항목', '휴일', '평일']} rows={DROP_ROWS} />
+        <Sub>급등 근거 숫자 (시험 기간)</Sub>
+        <Tbl cols={['항목', '휴일', '평일']} rows={SURGE_ROWS} />
+        <Sub>유형별 주원인과 대표 사례</Sub>
         <div className="grid gap-3 md:grid-cols-2">
           {QUADS.map((q) => (
             <div key={q.k} className="rounded-ui border border-line p-4">
@@ -169,10 +174,6 @@ function Summary({ go }: { go: (t: CaseTab) => void }) {
             </div>
           ))}
         </div>
-        <Sub>급락 근거 숫자 (사건일 평균 / 같은 유형 평소, 2024. 1. ~ 2026. 10.)</Sub>
-        <Tbl cols={['항목', '휴일', '평일']} rows={DROP_ROWS} />
-        <Sub>급등 근거 숫자 (시험 기간)</Sub>
-        <Tbl cols={['항목', '휴일', '평일']} rows={SURGE_ROWS} />
       </Sec>
       <Sec title="네 사례에서 배운 것">
         <Items items={[
