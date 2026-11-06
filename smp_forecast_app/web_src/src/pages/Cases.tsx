@@ -152,12 +152,13 @@ const SURGE_ROWS = [
 function Summary({ go }: { go: (t: CaseTab) => void }) {
   return (
     <>
-      <Sec title="1. 총 사례 정리" sub="시험 기간(2025. 1. ~ 2026. 10.) 육지 · 주원인은 가장 그럴듯한 것">
-        <Sub>급락 근거 숫자 (사건일 평균 / 같은 유형 평소, 2024. 1. ~ 2026. 10.)</Sub>
+      <Sec title="1. 급락 근거 숫자" sub="육지 · 사건일 평균 / 같은 유형 평소, 2024. 1. ~ 2026. 10.">
         <Tbl cols={['항목', '휴일', '평일']} rows={DROP_ROWS} />
-        <Sub>급등 근거 숫자 (시험 기간)</Sub>
+      </Sec>
+      <Sec title="2. 급등 근거 숫자" sub="육지 · 시험 기간 2025. 1. ~ 2026. 10.">
         <Tbl cols={['항목', '휴일', '평일']} rows={SURGE_ROWS} />
-        <Sub>유형별 주원인과 대표 사례</Sub>
+      </Sec>
+      <Sec title="3. 유형별 주원인과 대표 사례" sub="주원인은 가장 그럴듯한 것">
         <div className="grid gap-3 md:grid-cols-2">
           {QUADS.map((q) => (
             <div key={q.k} className="rounded-ui border border-line p-4">
@@ -175,7 +176,7 @@ function Summary({ go }: { go: (t: CaseTab) => void }) {
           ))}
         </div>
       </Sec>
-      <Sec title="네 사례에서 배운 것">
+      <Sec title="4. 네 사례에서 배운 것">
         <Items items={[
           ['가격은 거래소의 전날 전망으로 정해집니다', '다음 날 실제 날씨는 가격의 원인이 아닙니다. 두 급락 사례 모두 우리가 쓴 11시 예보가 거래소 전망과 반대(흐림)여서 놓쳤습니다.'],
           ["급락은 '수요−태양광'이 결정합니다", '휴일·평일보다, 거래소가 전망한 순부하가 원전 출력 아래로 내려가느냐가 핵심입니다.'],
