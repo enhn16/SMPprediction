@@ -435,8 +435,9 @@ def actuals():
 
 
 def push(msg):
-    """웹 데이터 파일만 커밋·푸시. 실패해도 예측은 로컬에 남음."""
-    f = ["smp_forecast_app/web/data/forecast_data.js", "smp_forecast_app/web/data/forecast_data_jeju.js"]
+    """웹 데이터 파일과 근거 문장 표(R5)만 커밋·푸시. 실패해도 예측은 로컬에 남음."""
+    f = ["smp_forecast_app/web/data/forecast_data.js", "smp_forecast_app/web/data/forecast_data_jeju.js",
+         "smp_forecast_app/outputs/tables/R5_reason_육지.csv", "smp_forecast_app/outputs/tables/R5_why_육지.json"]
     if os.environ.get("SMP_NO_PUSH"):   # 수동 시험용
         log("푸시 건너뜀 (SMP_NO_PUSH)")
         return

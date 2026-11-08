@@ -53,7 +53,7 @@
 - 잔차 보정 학습 이력: Chronos 과거 예측 `wzoo_hist/c2s.csv.gz`(2023~2024) + 백테스트 `wzoo/c2s.csv.gz` + 운영 기록의 `c2s` 열
 - 예측 기록: `data/processed/smp_forecast_app/ops/hourly_log.csv`(H=1~7; pred = 보정 후, c2s = Chronos 원래 중앙값, rhat = 잔차 예측), `daily_log.csv`(7~34일), `drop_log.csv`(급락 확률)
 - 실행 기록: `data/processed/smp_forecast_app/ops/run_log.txt`, `console_*.log`
-- 웹 데이터: `smp_forecast_app/web/data/forecast_data.js`(육지·공통) + `forecast_data_jeju.js`(제주) (백테스트 결과 + 운영 기록, 같은 대상은 운영 기록 우선). 푸시는 두 파일만 커밋
+- 웹 데이터: `smp_forecast_app/web/data/forecast_data.js`(육지·공통) + `forecast_data_jeju.js`(제주) (백테스트 결과 + 운영 기록, 같은 대상은 운영 기록 우선). 푸시는 이 두 파일과 근거 문장 표(`outputs/tables/R5_reason_육지.csv`, `R5_why_육지.json`)만 커밋 (2026-11-08)
 
 ## 범위 계산
 - **휴일·주말 한낮 하한 보정** (2026-10-27, `range_adjust.py`, `RA_choice.json`): 운영 기록에는 원래 범위를 남기고, 웹 데이터(`export_web`)·팀 비교표가 읽을 때 적용. 육지 = 2~7일 뒤 휴일·주말 11~15시 하한 × 0.85, 제주 = 같은 규칙 + 내일 급락 경보(경보 0원·주의 절반). 선택을 바꾸면 `python -m smp_forecast_app.src.range_adjust` 후 `--score2026`
