@@ -283,7 +283,8 @@ def main():
         print(f"제주 내보내기 실패: {e!r}")
         jeju = None
     ol = OPS / "run_log.txt"
-    runs = [l for l in ol.read_text(encoding="utf-8").splitlines() if "매일 예측 완료" in l] if ol.exists() else []
+    # '예측 산출 완료'(내보내기 직전 기록) 또는 예전 실행의 '매일 예측 완료' 중 가장 마지막 줄
+    runs = [l for l in ol.read_text(encoding="utf-8").splitlines() if "예측 산출 완료" in l or "매일 예측 완료" in l] if ol.exists() else []
     data = {"generated": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"), "lastRun": runs[-1][1:17] if runs else None,
             "dayinfo": {k: v for k, v in dayinfo.items() if k >= PAST_SINCE}, "perf": perf, "docs": docs, **land, "hasJeju": jeju is not None}
     OUT.parent.mkdir(parents=True, exist_ok=True)

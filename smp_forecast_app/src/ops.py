@@ -420,6 +420,7 @@ def daily():
             except Exception:  # noqa: BLE001
                 log(f"{name} 실패:\n" + traceback.format_exc())
     jeju(today, run_at)
+    log("예측 산출 완료")   # 웹 '예측 산출' 시각 — 내보내기 전에 남겨야 이번 실행 시각이 화면에 나감 (2026-11-10)
     export_web.main()
     push(f"웹 데이터 갱신 {today:%Y-%m-%d} (예측)")
     log(f"===== 매일 예측 완료 ({time.time()-t0:.0f}s) =====")
