@@ -1,5 +1,5 @@
 import { D, LEVEL, REGION, T_STRONG, T_WARN, dropTarget, surgeData, type Why } from '../data'
-import { lab } from '../fmt'
+import { addDays, lab } from '../fmt'
 import { LV } from '../theme'
 
 type Lv = 'low' | 'warn' | 'strong' | 'na'
@@ -71,8 +71,9 @@ export function Alerts({ iso }: { iso: string }) {
   const dropLv: Lv = !dropTarget(iso) || !d ? 'na' : LEVEL[d.grade]?.key ?? 'low'
   const surgeLv: Lv = !s ? 'na' : s.grade === '경보' ? 'strong' : s.grade === '주의' ? 'warn' : 'low'
   const why = REGION === '육지' ? D.why ?? {} : {}
-  // 근거 문장: 화면에서는 '내일'을 뺌 (공표 뒤 그날이 오늘이 되면 틀림), 값이 비어 'nan'이 찍힌 문장은 숨김
-  const clean = (w?: Why) => w?.filter((r) => !/nan/.test(r.t)).map((r) => ({ ...r, t: r.t.replace(/내일(은)?\s*/g, '') }))
+  // 근거 문장: 화면에서는 '내일'을 빼고 '오늘'(판단일)은 날짜로 바꿈 (보는 날에 따라 오늘·내일이 틀려짐), 값이 비어 'nan'이 찍힌 문장은 숨김
+  const baseLab = lab(addDays(iso, -1))
+  const clean = (w?: Why) => w?.filter((r) => !/nan/.test(r.t)).map((r) => ({ ...r, t: r.t.replace(/내일(은)?\s*/g, '').replace(/오늘/g, baseLab) }))
   return (
     <div className={`grid gap-5 ${REGION === '육지' ? 'md:grid-cols-2' : ''}`}>
       <Card kind="drop" lv={dropLv} prob={d?.prob} date={lab(iso)} sub="한낮 11~15시" why={clean(why.drop?.[iso])} warn={T_WARN} strong={T_STRONG}
